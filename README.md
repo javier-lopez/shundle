@@ -2,7 +2,9 @@
 
 [Shundle](https://github.com/chilicuil/shundle/) is short for _sh bundle_ and is a [sh](http://en.wikipedia.org/wiki/Unix_shell) plugin manager.
 
-![shundle](http://javier.io/assets/img/shundle-1.png)
+<p align="center">
+<img src="http://javier.io/assets/img/shundle-1.png" alt="shundle"/>
+</p>
 
 ## Quick start
 
