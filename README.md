@@ -70,7 +70,7 @@ If by any reason you dislike [Shundle](https://github.com/chilicuil/shundle) you
    $ rm -rf ~/.shundle
    ```
 
-Please drop me an [email](m@javier.io) with your suggestions or open [an issue](https://github.com/chilicuil/shundle/issues) describing the problems you faced.
+Please drop me an [email](mailto:m@javier.io) with your suggestions or open [an issue](https://github.com/chilicuil/shundle/issues) describing the problems you faced.
 
 ## Contributors
 
