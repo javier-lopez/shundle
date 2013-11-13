@@ -55,7 +55,9 @@
 3. Install configured bundles:
 
    ```
+   $ . ~/.bashrc
    $ shundle install
+   $ . ~/.bashrc
    ```
 
    Installation requires [Git] and triggers [`git clone`](http://gitref.org/creating/#clone) for each configured repo to `~/.shundle/bundle/`.
