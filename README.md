@@ -62,6 +62,16 @@
 
    Installation requires [Git] and triggers [`git clone`](http://gitref.org/creating/#clone) for each configured repo to `~/.shundle/bundle/`.
 
+## Uninstalling
+
+If by any reason you dislike [Shundle](https://github.com/chilicuil/shundle) you can uninstall it by removing the top shundle directory:
+
+   ```
+   $ rm -rf ~/.shundle
+   ```
+
+Please drop me an [email](m@javier.io) with your suggestions or open [an issue](https://github.com/chilicuil/shundle/issues) describing the problems you faced.
+
 ## Contributors
 
 See [Shundle contributors](https://github.com/chilicuil/shundle/graphs/contributors)
