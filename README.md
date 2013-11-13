@@ -60,7 +60,7 @@
    $ . ~/.bashrc
    ```
 
-   Installation requires [Git] and triggers [`git clone`](http://gitref.org/creating/#clone) for each configured repo to `~/.shundle/bundle/`.
+   Installation requires [Git](http://git-scm.com/) and triggers [`git clone`](http://gitref.org/creating/#clone) for each configured repo to `~/.shundle/bundle/`.
 
 ## Uninstalling
 
