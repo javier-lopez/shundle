@@ -73,6 +73,7 @@ _shundle_aux_options()
             _shundle_aux_options_var_array="$_shundle_aux_options_var_array""$_shundle_aux_options_var_bundle"","
         done
     fi
+    eval "$_shundle_aux_options_var_subset"
     printf "%s" "$_shundle_aux_options_var_array"
 }
 
