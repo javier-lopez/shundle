@@ -35,6 +35,19 @@ _whereis()
     fi
 }
 
+_die()
+{   #print a stacktrace with a msg, exits with 1
+    if [ -n "$BASH" ]; then
+        _die_var_frame=0
+        while caller $frame; do
+            _die_var_frame=$(expr $frame+1);
+        done
+    fi
+
+    printf "%s\\n" "$*"
+    exit
+}
+
 _shundle_aux_loaded()
 {
     if [ -z "$1" ] || [ -z "$2" ]; then
@@ -49,6 +62,18 @@ _shundle_aux_loaded()
         done
         return 1
     fi
+}
+
+_shundle_aux_options()
+{
+    if [ -n "$SHUNDLE_RC" ]; then
+        _shundle_aux_options_var_subset=$(sed -n '/bundle\/shundle/,$ p' "$SHUNDLE_RC" | egrep '^.*=[^;&]*' | sed -e '/#.*=/d')
+        for _shundle_aux_options_var_bundle in $(printf "%s\\n" "$_shundle_aux_options_var_subset" | sed "/Bundle=/!d" \
+                                            | sed -e "s:Bundle=::g" -e "s: ::g" -e "s:['|\"]::g"); do
+            _shundle_aux_options_var_array="$_shundle_aux_options_var_array""$_shundle_aux_options_var_bundle"","
+        done
+    fi
+    printf "%s" "$_shundle_aux_options_var_array"
 }
 
 _shundle_install()
@@ -213,21 +238,15 @@ _shundle_install()
         echo install_local
     }
 
-    if [ -n "$SHUNDLE_RC" ]; then
-        _shundle_install_var_options=$(sed -n '/bundle\/shundle/,$ p' "$SHUNDLE_RC" | egrep '^.*=[^;&]*' | sed -e '/#.*=/d')
-        for _shundle_install_var_bundle in $(printf "%s\\n" "$_shundle_install_var_options" | sed "/Bundle=/!d" \
-                                            | sed -e "s:Bundle=::g" -e "s: ::g" -e "s:['|\"]::g"); do
-            _shundle_install_var_array="$_shundle_install_var_array""$_shundle_install_var_bundle"","
-        done
+    _shundle_install_var_array="$(_shundle_aux_options)"
 
-        while [ "$_shundle_install_var_array" ]; do
-            _shundle_install_var_element=${_shundle_install_var_array%%,*}
-            _shundle_install_aux "$_shundle_install_var_element"
-            [ X"$_shundle_install_var_array" = X"$_shundle_install_var_element" ] &&\
-                $_shundle_install_var_array='' || _shundle_install_var_array="${_shundle_install_var_array#*,}"
-        done
-        printf "\\n"
-    fi
+    while [ "$_shundle_install_var_array" ]; do
+        _shundle_install_var_element=${_shundle_install_var_array%%,*}
+        _shundle_install_aux "$_shundle_install_var_element"
+        [ X"$_shundle_install_var_array" = X"$_shundle_install_var_element" ] &&\
+            $_shundle_install_var_array='' || _shundle_install_var_array="${_shundle_install_var_array#*,}"
+    done
+    printf "\\n"
 
     #TODO 02-10-2013 05:12 >> activate newly added bundles on .bashrc
     #TODO 02-10-2013 05:12 >> allow specify revision/version?
@@ -235,7 +254,14 @@ _shundle_install()
 
 _shundle_remove()
 {
-    printf "%s\\n" "_shundle_remove"
+    [ -z "$1" ] && return 1
+    [ X"$1" = X"shundle" ] && _die "shundle: cannot remove myself!" #except the core
+    if [ -d "$SHUNDLE_HOME"/bundle/"$1" ]; then
+        printf "%s\\n" "[-] removing $1"
+        rm -rf "$SHUNDLE_HOME"/bundle/"$1"
+    else
+        return 1
+    fi
 }
 
 _shundle_search()
@@ -251,7 +277,25 @@ _shundle_update()
 
 _shundle_clean()
 {
-    printf "%s\\n" "_shundle_clean"
+    _shundle_clean_var_array_tmp="$(_shundle_aux_options)"
+    while [ "$_shundle_clean_var_array_tmp" ]; do #cleanup _shundle_clean_var_array_tmp
+        _shundle_clean_var_element=${_shundle_clean_var_array_tmp%%,*}
+        _shundle_clean_var_element="$(expr "$_shundle_clean_var_element" : '.*/\([^/]*\)')" #basename
+        _shundle_clean_var_array="$_shundle_clean_var_array""${_shundle_clean_var_element%.*}""," #remove .git extension
+        [ X"$_shundle_clean_var_array_tmp" = X"$_shundle_clean_var_element" ] &&\
+            $_shundle_clean_var_array_tmp='' || _shundle_clean_var_array_tmp="${_shundle_clean_var_array_tmp#*,}"
+    done
+
+    for plugin in "$SHUNDLE_HOME"/bundle/*; do
+        _shundle_clean_var_bplugin=$(expr "$plugin" : '.*/\([^/]*\)') #basename
+        _shundle_aux_loaded "$_shundle_clean_var_array" "$_shundle_clean_var_bplugin" && continue #delete only commented plugins
+        [ X"$_shundle_init_var_bplugin" = X"shundle" ] && _die "shundle: cannot remove myself!" #except the core
+
+        if [ -d "$SHUNDLE_HOME"/bundle/"$_shundle_clean_var_bplugin" ]; then
+            printf "%s\\n" "[-] removing $_shundle_clean_var_bplugin"
+            rm -rf "$SHUNDLE_HOME"/bundle/"$_shundle_clean_var_bplugin"
+        fi
+    done
 }
 
 _shundle_list()

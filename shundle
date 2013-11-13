@@ -1,7 +1,7 @@
 # Name:         shundle
 # Author:       Javier Lopez <m@javier.io>
 # Description:  shundle is s a simple plugin manager for general purpose shells
-# License:      wtfpl
+# License:      mit
 # Home:         http://github.com/chilicuil/shundle
 # Version:      0.1
 # Shell:        sh
@@ -43,8 +43,6 @@ fi
 [ -z "$SHUNDLE_ENV_DEBUG" ]   && SHUNDLE_ENV_DEBUG=0
 [ -z "$SHUNDLE_ENV_COLOR" ]   && SHUNDLE_ENV_COLOR=0
 [ -z "$SHUNDLE_HOME" ]        && SHUNDLE_HOME=~/.shundle
-#let g:vundle_default_git_proto = 'git'
-#makes Vundle use `git` instead default `https` when building absolute repo URIs
 
 #===============================================================================
 #================================== Plugin =====================================
@@ -114,7 +112,7 @@ _shundle_init()
         _shundle_init_var_bplugin=$(expr "$plugin" : '.*/\([^/]*\)') #basename
         [ X"$_shundle_init_var_bplugin" = X"shundle" ] && continue #avoid a loop
 
-        _shundle_aux_loaded "$SHUNDLE_PLUGINS" "$_shundle_init_var_bplugin" || continue #only non commented plugins are loaded #faster that the one sed liner
+        _shundle_aux_loaded "$SHUNDLE_PLUGINS" "$_shundle_init_var_bplugin" || continue #faster that the one sed liner
         #[ ! "$(printf "%s\\n" "$SHUNDLE_PLUGINS" | sed "/$_shundle_init_var_bplugin,/!d")" ] && continue #only non commented plugins are loaded
 
         if [ -f "$plugin"/"$_shundle_init_var_bplugin"/"$_shundle_init_var_bplugin" ]; then
