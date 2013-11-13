@@ -1,0 +1,158 @@
+# Name:         shundle
+# Author:       Javier Lopez <m@javier.io>
+# Description:  shundle is s a simple plugin manager for general purpose shells
+# License:      wtfpl
+# Home:         http://github.com/chilicuil/shundle
+# Version:      0.1
+# Shell:        sh
+# Depends:      none
+
+#TODO 02-10-2013 05:14 >> make shundle run in as many platforms as possible
+#TODO 02-10-2013 05:12 >> tests, posh, tcsh, zsh, ksh, ash, checkbashisms, linux, macos
+
+#BASH_VERSION=bash
+#ZSH_VERSION=zsh
+
+#TODO 02-10-2013 05:12 >> create user,plugin documentation
+
+#plugins suggestions
+#  add headers
+#  program defensively, test if foo command and bar dir are available before executing code using foo on bar
+#  be sparing with the use of external processes whenever you can, specially on functions which will be sourced at startup
+#  avoid writing to the file system
+#  use files for saving functions longer than 15 lines, and do not source them, use _shundle_expose to expose functionality
+
+#ensure we've OPTIONS=option before starting
+[ -n "$BASH_VERSION" ] && SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
+
+if [ -n "$SHUNDLE_RC" ]; then
+    _shundle_var_options=$(sed -n '/bundle\/shundle/,$ p' "$SHUNDLE_RC" | egrep '^.*=[^;&]*' | sed -e '/#.*=/d')
+    for _shundle_var_bundle in $(printf "%s\\n" "$_shundle_var_options" | sed "/Bundle=/!d" | sed -e "s:Bundle=::g" -e "s: ::g" -e "s:['|\"]::g"); do
+        _shundle_var_bundle_raw="$(expr "$_shundle_var_bundle" : '.*/\([^/]*\)')"
+        SHUNDLE_PLUGINS="$SHUNDLE_PLUGINS""${_shundle_var_bundle_raw%.*}""," #remove .git extension
+    done
+    eval "$_shundle_var_options"
+fi
+
+#===============================================================================
+#================================ Settings =====================================
+#===============================================================================
+#Don't modify this section directly, instead set options in your shell init file
+
+[ -z "$SHUNDLE_ENV_VERBOSE" ] && SHUNDLE_ENV_VERBOSE=0
+[ -z "$SHUNDLE_ENV_DEBUG" ]   && SHUNDLE_ENV_DEBUG=0
+[ -z "$SHUNDLE_ENV_COLOR" ]   && SHUNDLE_ENV_COLOR=0
+[ -z "$SHUNDLE_HOME" ]        && SHUNDLE_HOME=~/.shundle
+#let g:vundle_default_git_proto = 'git'
+#makes Vundle use `git` instead default `https` when building absolute repo URIs
+
+#===============================================================================
+#================================== Plugin =====================================
+#===============================================================================
+
+[ X"$SHUNDLE_ENV_DEBUG" = X"1" ] && set -x
+
+_shundle_verbose()
+{
+    [ ! X"$SHUNDLE_ENV_VERBOSE" = X"0" ] && printf "%s\\n" "$*" || true
+}
+
+_shundle_expose()
+{
+    #TODO 02-10-2013 15:56 >> verify if alias exist, maintain a list of exposed
+    [ -z "$1" ] && return 1
+    alias "$@" && _shundle_verbose "+ shundle-expose \""$@""\" || _shundle_verbose "- shundle-expose \""$@""\"
+}
+
+_shundle_aux_loaded()
+{
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        return 1
+    else
+        _shundle_aux_loaded_var_l="$1"
+        while [ "$_shundle_aux_loaded_var_l" ]; do
+            _shundle_aux_loaded_var_option=${_shundle_aux_loaded_var_l%%,*}
+            [ X"$2" = X"$_shundle_aux_loaded_var_option" ] && return 0
+            [ X"$_shundle_aux_loaded_var_l" = X"$_shundle_aux_loaded_var_option" ] &&\
+                _shundle_aux_loaded_var_l='' || _shundle_aux_loaded_var_l="${_shundle_aux_loaded_var_l#*,}"
+        done
+        return 1
+    fi
+}
+
+_shundle_source()
+{
+    [ -z "$1" ] && return 1
+
+    _shundle_source_var_plugin=$(expr "$1" : '.*/\([^/]*\)')
+    _shundle_aux_loaded "$_shundle_source_var_loaded" "$_shundle_source_var_plugin" && return 0
+
+    if [ -f "$1"/"$_shundle_source_var_plugin" ]; then
+        if . "$1"/"$_shundle_source_var_plugin"; then
+            _shundle_verbose "+ shundle-source \""$1"/"$_shundle_source_var_plugin""\" 
+            _shundle_source_var_loaded="$_shundle_source_var_loaded""$_shundle_source_var_plugin"","
+        else
+            _shundle_verbose "- shundle-source \""$1"/"$_shundle_source_var_plugin""\" 
+        fi
+    elif [ -f "$1" ]; then
+        if . "$1"; then
+            _shundle_verbose "+ shundle-source \""$1""\" 
+            _shundle_source_var_loaded="$_shundle_source_var_loaded""$_shundle_source_var_plugin"","
+        else
+            _shundle_verbose "- shundle-source \""$1""\" 
+        fi
+    fi
+}
+
+_shundle_init()
+{
+    #plugins must be saved at: $SHUNDLE_HOME/bundle/name_plugin/name_plugin, only
+    #name_plugin is sourced, however it can source other files inside its namespace
+    #heavy functions should be written as separe files and be exposed (_shundle_expose)
+    #to maintain a fast initialization process
+    for plugin in "$SHUNDLE_HOME"/bundle/*; do
+        _shundle_init_var_bplugin=$(expr "$plugin" : '.*/\([^/]*\)') #basename
+        [ X"$_shundle_init_var_bplugin" = X"shundle" ] && continue #avoid a loop
+
+        _shundle_aux_loaded "$SHUNDLE_PLUGINS" "$_shundle_init_var_bplugin" || continue #only non commented plugins are loaded #faster that the one sed liner
+        #[ ! "$(printf "%s\\n" "$SHUNDLE_PLUGINS" | sed "/$_shundle_init_var_bplugin,/!d")" ] && continue #only non commented plugins are loaded
+
+        if [ -f "$plugin"/"$_shundle_init_var_bplugin"/"$_shundle_init_var_bplugin" ]; then
+            #exception to support $SHUNDLE_HOME/bundle/name_plugin/name_plugin/name_plugin which is useful if several
+            #plugins are taken from the same repository eg. https://github.com/chilicuil/shundle-plugins
+            _shundle_init_var_bplugin="$_shundle_init_var_bplugin"/"$_shundle_init_var_bplugin"
+        fi
+
+        _shundle_init_var_dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init_var_bplugin" | cut -d: -f2 | tr -d " \t\n\r")
+        if [ X"$_shundle_init_var_dplugin" = X"none" ] || [ X"$_shundle_init_var_dplugin" = X"" ]; then
+            _shundle_source "$plugin"/"$_shundle_init_var_bplugin"
+        else
+            #http://stackoverflow.com/a/15988793/1724603
+            while [ "$_shundle_init_var_dplugin" ] ;do
+                _shundle_init_var_dependency=${_shundle_init_var_dplugin%%,*}
+                if [ -f "$plugin"/../"$_shundle_init_var_dependency"/"$_shundle_init_var_dependency" ]; then
+                    _shundle_init_var_oldplugin="$plugin"; plugin="$plugin"/../"$_shundle_init_var_dependency"
+                    _shundle_source "$plugin"/"$_shundle_init_var_dependency"; plugin="$_shundle_init_var_oldplugin"
+                fi
+                [ X"$_shundle_init_var_dplugin" = X"$_shundle_init_var_dependency" ] && \
+                    _shundle_init_var_dplugin='' || _shundle_init_var_dplugin="${_shundle_init_var_dplugin#*,}"
+            done
+            _shundle_source "$plugin"/"$_shundle_init_var_bplugin"
+        fi
+    done
+}
+
+export SHUNDLE_ENV_VERBOSE
+export SHUNDLE_ENV_DEBUG
+export SHUNDLE_ENV_COLOR
+export SHUNDLE_PLUGINS
+export SHUNDLE_HOME
+export SHUNDLE_RC
+
+_shundle_init
+
+[ X"$SHUNDLE_ENV_DEBUG" = X"1" ] && set +x
+
+_shundle_expose shundle="$SHUNDLE_HOME""/bundle/shundle/bin/shundle"
+
+# vim: set ts=8 sw=4 tw=0 ft=sh : 
