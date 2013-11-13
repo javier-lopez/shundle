@@ -4,6 +4,9 @@
 [ X"$2" = X"on" ] && { shift; shift; }
 [ X"$1" = X"-c" ] && { shift; SHUNDLE_ENV_COLOR=1; }
 
+#required for clean|install at first deployment time
+[ -z "$SHUNDLE_HOME" ] && SHUNDLE_HOME=~/.shundle
+
 if [ X"$SHUNDLE_ENV_COLOR" = X"1" ]; then
     _BIN_SHUNDLE_ENV_RED='\033[1;31m'
     _BIN_SHUNDLE_ENV_BLUE='\033[1;34m'
