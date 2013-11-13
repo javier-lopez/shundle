@@ -140,7 +140,7 @@ _shundle_install()
         else
             if [ -d "$SHUNDLE_HOME"/bundle/"$_shundle_install_github_var_plugin"/.git ]; then
                 (cd "$SHUNDLE_HOME"/bundle/"$_shundle_install_github_var_plugin" 2>/dev/null && \
-                 git pull && git submodule update --init --recursive)
+                 git pull >/dev/null 2>/dev/null && git submodule update --init --recursive >/dev/null 2>/dev/null)
             else
                 (cd "$SHUNDLE_HOME"/bundle >/dev/null 2>/dev/null && \
                 mkdir "$_shundle_install_github_var_plugin" >/dev/null 2>/dev/null ; cd "$_shundle_install_github_var_plugin" && \
