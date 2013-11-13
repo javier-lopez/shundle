@@ -143,22 +143,22 @@ _shundle_install()
                  git pull >/dev/null 2>/dev/null && git submodule update --init --recursive >/dev/null 2>/dev/null)
             else
                 (cd "$SHUNDLE_HOME"/bundle >/dev/null 2>/dev/null && \
-                mkdir "$_shundle_install_github_var_plugin" >/dev/null 2>/dev/null ; cd "$_shundle_install_github_var_plugin" && \
-                git init >/dev/null && git config core.sparseCheckout true >/dev/null 2>/dev/null && \
+                git clone --depth=1 "$_shundle_install_var_url" "$_shundle_install_github_var_plugin" >/dev/null 2>/dev/null && \
+                cd "$_shundle_install_github_var_plugin" && git config core.sparsecheckout true >/dev/null 2>/dev/null && \
                 printf "%s" "$_shundle_install_github_var_plugin" > .git/info/sparse-checkout && \
-                git remote add -f origin "$_shundle_install_var_url" >/dev/null 2>/dev/null && git pull origin master >/dev/null 2>/dev/null)
+                git read-tree -m -u HEAD >/dev/null 2>/dev/null)
             fi
         fi
 
-        #1.- checkout everything, delete extra information
-        #-----------------------------------------------------
+        #1.- checkout everything, delete extra information (currently using this)
+        #------------------------------------------------------------------------
         #git clone --dept=1 somerepo somedir
         #cd somedir
         #git config core.sparsecheckout true
         #printf "%s\\n" "test" > .git/info/sparse-checkout
         #git read-tree -m -u HEAD
 
-        #2.- define what to download, checkout latter, download less that the above? (currently using this)
+        #2.- define what to download, checkout latter, download less that the above?: NO
         #---------------------------------------------------------------------------------------------------
         #mkdir plugin1
         #cd plugin1
