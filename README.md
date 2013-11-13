@@ -11,7 +11,7 @@
 1. Set up [Shundle](https://github.com/chilicuil/shundle/):
 
    ```
-   $ git clone https://github.com/chilicuil/shundle ~/.shundle/bundle/shundle
+   $ git clone --depth=1 https://github.com/chilicuil/shundle ~/.shundle/bundle/shundle
    ```
 
 2. Configure bundles:
