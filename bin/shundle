@@ -94,7 +94,7 @@ _shundle_install()
     {
         [ -z "$1" ] && return
         _shundle_install_header
-        printf "\\n  [+] Bundle '%s' " "$1"
+        printf "\\n [+] Bundle '%s' " "$1"
 
         _shundle_install_var_prefix="${1%:*}"
         _shundle_install_var_sufix="${1#*:}"
