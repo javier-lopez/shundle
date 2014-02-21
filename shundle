@@ -1,6 +1,6 @@
 # Name:         shundle
 # Author:       Javier Lopez <m@javier.io>
-# Description:  shundle is s a simple plugin manager for general purpose shells
+# Description:  shundle is a simple plugin manager for general purpose shells
 # License:      mit
 # Home:         http://github.com/chilicuil/shundle
 # Version:      0.1
@@ -26,8 +26,10 @@
 [ -n "$BASH_VERSION" ] && SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
 
 if [ -n "$SHUNDLE_RC" ]; then
-    _shundle_var_options=$(sed -n '/bundle\/shundle/,$ p' "$SHUNDLE_RC" | egrep '^.*=[^;&]*' | sed -e '/#.*=/d')
-    for _shundle_var_bundle in $(printf "%s\\n" "$_shundle_var_options" | sed "/Bundle=/!d" | sed -e "s:Bundle=::g" -e "s: ::g" -e "s:['|\"]::g"); do
+    #_shundle_var_options=$(sed -n '/bundle\/shundle/,$ p' "$SHUNDLE_RC" | egrep '^.*=[^;&]*' | sed -e '/#.*=/d')
+    _shundle_var_options=$(awk '/bundle\/shundle/,0 {if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#") print }' "$SHUNDLE_RC") #faster
+    #for _shundle_var_bundle in $(printf "%s\\n" "$_shundle_var_options" | sed "/Bundle=/!d" | sed -e "s:Bundle=::g" -e "s: ::g" -e "s:['|\"]::g"); do
+    for _shundle_var_bundle in $(printf "%s\\n" "$_shundle_var_options" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
         _shundle_var_bundle_raw="$(expr "$_shundle_var_bundle" : '.*/\([^/]*\)')"
         SHUNDLE_PLUGINS="$SHUNDLE_PLUGINS""${_shundle_var_bundle_raw%.*}""," #remove .git extension
     done
@@ -121,7 +123,9 @@ _shundle_init()
             _shundle_init_var_bplugin="$_shundle_init_var_bplugin"/"$_shundle_init_var_bplugin"
         fi
 
-        _shundle_init_var_dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init_var_bplugin" | cut -d: -f2 | tr -d " \t\n\r")
+        #_shundle_init_var_dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init_var_bplugin" | cut -d: -f2 | tr -d " \t\n\r")
+        #_shundle_init_var_dplugin=$(awk 'BEGIN {FS=":"} { if ($0 ~ "[D|d]epends:") print $2}' "$plugin"/"$_shundle_init_var_bplugin" | tr -d " \t\n\r") #faster
+        _shundle_init_var_dplugin=$(awk '{ if ($0 ~ "[D|d]epends:") print $3}' "$plugin"/"$_shundle_init_var_bplugin") #even faster, however it breaks when '#depends: value' is used instead of '# depends: value', I'll leave it for now since I'm the author of all plugins
         if [ X"$_shundle_init_var_dplugin" = X"none" ] || [ X"$_shundle_init_var_dplugin" = X"" ]; then
             _shundle_source "$plugin"/"$_shundle_init_var_bplugin"
         else
