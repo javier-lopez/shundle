@@ -119,7 +119,7 @@ _shundle_install()
             esac
         fi
         
-        [ ! X"$?" = X"0" ] && printf "    %s\\n" "failed"
+        [ ! X"$?" = X"0" ] && printf "    %s" "failed"
 
         #~/Dropbox/.gitrepos/utilz.vim.git
         #/home/chilicuil/Dropbox/.gitrepos/utilz.vim.git
