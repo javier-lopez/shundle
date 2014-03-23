@@ -3,7 +3,7 @@
 [Shundle](https://github.com/chilicuil/shundle/) is short for _sh bundle_ and is a [sh](http://en.wikipedia.org/wiki/Unix_shell) plugin manager.
 
 <p align="center">
-<iframe class="showterm" src="http://showterm.io/260fe8f71ef23ccf3fd9e" width="620" height="350">&nbsp;</iframe> 
+<img src="http://javier.io/assets/img/shundle-1.gif" alt="shundle"/>
 </p>
 
 ## Quick start
