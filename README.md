@@ -19,7 +19,7 @@
    Sample `.bashrc` (if not using bash use your shell init profile):
 
    ```sh
-   if [ -f ~/.shundle/bundle/shundle ]; then
+   if [ -d ~/.shundle/bundle/shundle ]; then
        .  ~/.shundle/bundle/shundle/shundle
        #let shundle manage shundle, required!
        Bundle='chilicuil/shundle'
