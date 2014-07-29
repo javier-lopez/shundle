@@ -7,16 +7,14 @@
 # Shell:        sh
 # Depends:      none
 
-#BASH_VERSION=bash
-#ZSH_VERSION=zsh
-
 #ensure we've OPTIONS="option" before starting
 [ -n "${BASH_VERSION}" ] && SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
+#ZSH_VERSION=zsh
 
 if [ -n "${SHUNDLE_RC}" ]; then
     _shundle_var_options="$(awk '/bundle\/shundle/,0 {if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#") print }' "${SHUNDLE_RC}")"
-    for _shundle_var_bundle in $(printf "%s\\n" "${_shundle_var_options}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
-        _shundle_var_bundle_raw="$(expr "${_shundle_var_bundle}" : '.*/\([^/]*\)')" #basename
+    for _shundle_var_bundle in $(printf "%s" "${_shundle_var_options}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
+        _shundle_var_bundle_raw="${_shundle_var_bundle##*/}" #basename
         SHUNDLE_PLUGINS="${SHUNDLE_PLUGINS}${_shundle_var_bundle_raw%.*}," #remove .git extension
     done
     eval "${_shundle_var_options}"
@@ -47,7 +45,7 @@ _shundle_expose()
 {
     #TODO 02-10-2013 15:56 >> maintain a list of exposed plugins
     [ -z "${1}" ] && return 1
-    alias "${@}" && _shundle_verbose "+ shundle-expose \""${@}""\" || _shundle_verbose "- shundle-expose \""${@}""\"
+    alias "${@}"  && _shundle_verbose "+ shundle-expose \""${@}""\" || _shundle_verbose "- shundle-expose \""${@}""\"
 }
 
 _shundle_aux_loaded()
@@ -70,7 +68,7 @@ _shundle_source()
 {
     [ -z "${1}" ] && return 1
 
-    _shundle_source_var_plugin="$(expr "${1}" : '.*/\([^/]*\)')"
+    _shundle_source_var_plugin="${1##*/}"
     _shundle_aux_loaded "${_shundle_source_var_loaded}" "${_shundle_source_var_plugin}" && return 0
 
     if [ -f "${1}/${_shundle_source_var_plugin}" ]; then
@@ -97,14 +95,13 @@ _shundle_init()
     #heavy functions should be written as separe files and be exposed (_shundle_expose)
     #to maintain a fast initialization process
     for plugin in "${SHUNDLE_HOME}"/bundle/*; do
-        _shundle_init_var_bplugin="$(expr "${plugin}" : '.*/\([^/]*\)')"
+        _shundle_init_var_bplugin="${plugin##*/}"
         [ X"${_shundle_init_var_bplugin}" = X"shundle" ] && continue #avoid a loop
         #only non commented plugins are loaded
         _shundle_aux_loaded "${SHUNDLE_PLUGINS}" "${_shundle_init_var_bplugin}" || continue
 
-        if [ -f "${plugin}/${_shundle_init_var_bplugin}/${_shundle_init_var_bplugin}" ]; then
+        [ -f "${plugin}/${_shundle_init_var_bplugin}/${_shundle_init_var_bplugin}" ] && \
             _shundle_init_var_bplugin="${_shundle_init_var_bplugin}/${_shundle_init_var_bplugin}"
-        fi
 
         #_shundle_init_var_dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init_var_bplugin" | cut -d: -f2 | tr -d " \t\n\r")
         #_shundle_init_var_dplugin=$(awk 'BEGIN {FS=":"} { if ($0 ~ "[D|d]epends:") print $2}' "$plugin"/"$_shundle_init_var_bplugin" | tr -d " \t\n\r") #faster

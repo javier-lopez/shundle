@@ -64,7 +64,7 @@ _shundle_aux_options()
 {
     if [ -n "${SHUNDLE_RC}" ]; then
         _shundle_aux_options_var_subset="$(awk '/bundle\/shundle/,0 {if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#") print }' "${SHUNDLE_RC}")"
-        for _shundle_aux_options_var_bundle in $(printf "%s\\n" "${_shundle_aux_options_var_subset}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
+        for _shundle_aux_options_var_bundle in $(printf "%s" "${_shundle_aux_options_var_subset}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
             _shundle_aux_options_var_array="${_shundle_aux_options_var_array}${_shundle_aux_options_var_bundle},"
         done
     fi
@@ -140,11 +140,9 @@ _shundle_install()
             */*) _shundle_install_github_var_rep="" ;;
         esac
 
-        _shundle_install_var_url="$(printf "%s%s%s%s" "${_shundle_install_github_var_default_protocol}" \
-                                   "://github.com/" "${_shundle_install_github_var_author}/" \
-                                   "${_shundle_install_github_var_rep}")"
+        _shundle_install_var_url="${_shundle_install_github_var_default_protocol}://github.com/${_shundle_install_github_var_author}/${_shundle_install_github_var_rep}"
 
-        _shundle_install_github_var_plugin="$(expr "${1}" : '.*/\([^/]*\)')"
+        _shundle_install_github_var_plugin="${1##*/}"
         _shundle_install_github_var_plugin="${_shundle_install_github_var_plugin%.*}"
 
         if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}" ] \
@@ -268,14 +266,14 @@ _shundle_clean()
     _shundle_clean_var_array_tmp="$(_shundle_aux_options)"
     while [ "${_shundle_clean_var_array_tmp}" ]; do
         _shundle_clean_var_element="${_shundle_clean_var_array_tmp%%,*}"
-        _shundle_clean_var_element="$(expr "${_shundle_clean_var_element}" : '.*/\([^/]*\)')"
+        _shundle_clean_var_element="${_shundle_clean_var_element##*/}"
         _shundle_clean_var_array="${_shundle_clean_var_array}${_shundle_clean_var_element%.*},"
         [ X"${_shundle_clean_var_array_tmp}" = X"${_shundle_clean_var_element}" ] &&\
             ${_shundle_clean_var_array_tmp}='' || _shundle_clean_var_array_tmp="${_shundle_clean_var_array_tmp#*,}"
     done
 
     for plugin in "${SHUNDLE_HOME}"/bundle/*; do
-        _shundle_clean_var_bplugin="$(expr "${plugin}" : '.*/\([^/]*\)')"
+        _shundle_clean_var_bplugin="${plugin##*/}"
         _shundle_aux_loaded "${_shundle_clean_var_array}" "${_shundle_clean_var_bplugin}" && continue #delete only commented plugins
         _shundle_remove "${_shundle_clean_var_bplugin}"
     done
@@ -292,7 +290,7 @@ _shundle_list()
     printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_BLUE}" "plugins" "${_BIN_SHUNDLE_ENV_NORMAL}"
 
     for _shundle_list_var_plugin in "${SHUNDLE_HOME}"/bundle/*; do
-        _shundle_list_var_bplugin="$(expr "${_shundle_list_var_plugin}" : '.*/\([^/]*\)')"
+        _shundle_list_var_bplugin="${_shundle_list_var_plugin##*/}"
         if _shundle_aux_loaded ${SHUNDLE_PLUGINS} ${_shundle_list_var_bplugin}; then
             printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" " +${_shundle_list_var_bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         else
