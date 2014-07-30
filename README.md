@@ -3,7 +3,7 @@
 [Shundle](https://github.com/chilicuil/shundle/) is short for _sh bundle_ and is a [sh](http://en.wikipedia.org/wiki/Unix_shell) plugin manager.
 
 <p align="center">
-<img src="http://javier.io/assets/img/shundle-1.gif" alt="shundle"/>
+<img src="http://javier.io/assets/img/shundle-2.gif" alt="shundle"/>
 </p>
 
 ## Quick start
@@ -46,9 +46,9 @@
    # shundle list         - list installed bundles
    # shundle install      - install configured bundles
    # shundle search       - search for foo in github (experimental)
-   # shundle clearn       - confirm (or auto-approve) removal of unused bundles
+   # shundle clean        - confirm (or auto-approve) removal of unused bundles
    #
-   # run shundle without parameters for more details or wiki for FAQ
+   # run shundle without parameters for more details or see the wiki for FAQ
    #
    ```
 
