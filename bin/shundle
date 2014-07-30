@@ -16,7 +16,7 @@ if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ]; then
 fi
 
 _usage()
-{   #prints an usage msg and exits with 0
+{
     printf "%s\\n" "Usage: shundle [-c] OPTION [ARGS]"
     printf "\\n"
     printf "%s\\n" "  -c                colorize output"
@@ -62,18 +62,18 @@ _shundle_aux_loaded()
 
 _shundle_aux_options()
 {
+    [ -z "${SHUNDLE_OPTIONS}" ] || return 0
     if [ -n "${SHUNDLE_RC}" ]; then
         _shundle_aux_options_var_subset="$(awk '/bundle\/shundle/,0 {if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#") print }' "${SHUNDLE_RC}")"
         for _shundle_aux_options_var_bundle in $(printf "%s" "${_shundle_aux_options_var_subset}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
-            _shundle_aux_options_var_array="${_shundle_aux_options_var_array}${_shundle_aux_options_var_bundle},"
+            SHUNDLE_OPTIONS="${SHUNDLE_OPTIONS}${_shundle_aux_options_var_bundle},"
         done
     fi
-    printf "%s" "${_shundle_aux_options_var_array}"
 }
 
 _shundle_install()
 {
-    [ X"${1}" = X"update" ] && _shundle_install_var_update="true"
+    [ X"${1}" = X"update" ] && { _shundle_install_var_update="true"; shift; }
 
     _shundle_install_header()
     {
@@ -84,7 +84,7 @@ _shundle_install()
 
     _shundle_install_aux()
     {
-        [ -z "${1}" ] && return
+        [ -z "${1}" ] && return 0
         _shundle_install_header
         printf "\\n [+] Bundle '%s' " "${1}"
 
@@ -93,41 +93,38 @@ _shundle_install()
 
         if [ X"${_shundle_install_var_prefix}" = X"${_shundle_install_var_sufix}" ]; then
             case "${_shundle_install_var_sufix}" in
-                /*|~*) _shundle_install_local  "${_shundle_install_var_sufix}" ;;
-                *)     _shundle_install_github "${_shundle_install_var_sufix}" ;;
+                /*|~*|\$*) _shundle_install_local  "${_shundle_install_var_sufix}" ;;
+                *)         _shundle_install_github "${_shundle_install_var_sufix}" ;;
             esac
         else
             case "${_shundle_install_var_prefix}" in
-                gh|github|git@github.com) _shundle_install_github "${_shundle_install_var_sufix}" ;;
-                http|https) _shundle_install_http "${_shundle_install_var_sufix}" ;;
-                git) _shundle_install_git "${_shundle_install_var_sufix}" ;;
-                file) _shundle_install_local "${_shundle_install_var_sufix}" ;;
+                gh|github|git@github.com) _shundle_install_github "${_shundle_install_var_sufix}"    ;;
+                git)                      _shundle_install_git    "${_shundle_install_var_sufix}"    ;;
+                file)                     _shundle_install_local  "${_shundle_install_var_sufix#//}" ;;
+                http|https|ftp)           _shundle_install_web    "${1}"                             ;;
+                #Bundle 'gh:chilicuil/shundle-plugins/eternalize'
+                #Bundle 'github:chilicuil/shundle-plugins/colorize'
+                #Bundle 'git@github.com:chilicuil/shundle-plugins/aliazator'
+                #Bundle 'username/repository'
+                #Bundle 'username/repository.git'
+
+                #Bundle 'https://domain.tld/path/awesome-script'
+                #Bundle 'http://domain.tld/path/awesome-script'
+                #Bundle 'ftp://domain.tld/path/awesome-script'
+
+                #Bundle 'file://~/path/awesome-script'
+                #Bundle 'file://$HOME/path/awesome-script'
+                #Bundle 'file://home/username/path/awesome-script'
+                #Bundle '/home/username/path/awesome-script'
+                #Bundle '$HOME/path/awesome-script'
+
+                #"plugins repository? https://github.com/chilicuil/shundle-plugins
+                #Bundle 'colorize'
             esac
         fi
         
-        [ ! X"${?}" = X"0" ] && printf "    %s" "failed"
-
-        #~/Dropbox/.gitrepos/utilz.vim.git
-        #/home/chilicuil/Dropbox/.gitrepos/utilz.vim.git
-
-        #gh:chilicuil/shundle-plugins/eternalize
-        #github:chilicuil/shundle-plugins/colorize
-        #git@github.com:gmarik/ingretu.git
-
-        #https://github.com/vim-scripts/vim-game-of-life'
-        #file://Dropbox/.gitrepos/utilz.vim.git
-
-        #" vim-scripts name
-        #Bundle 'molokai'
-
-        #" original repo
-        #Bundle 'altercation/vim-colors-solarized'
-        #" with extension
-        #Bundle 'nelstrom/vim-mac-classic-theme.git'
-        #"  invalid uri
-        #Bundle 'nonexistinguser/yupppierepo.git'
-
-        #" local uri stuff
+        #TODO 29-07-2014 13:52 >> add debug information on fail
+        [ X"${?}" = X"0" ] || printf "    %s" "failed"
     }
 
     _shundle_install_github()
@@ -145,23 +142,22 @@ _shundle_install()
         _shundle_install_github_var_plugin="${1##*/}"
         _shundle_install_github_var_plugin="${_shundle_install_github_var_plugin%.*}"
 
-        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}" ] \
-                                  && [ -z "${_shundle_install_var_update}" ]; then
+        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}" ] && [ -z "${_shundle_install_var_update}" ]; then
             return 0
         else
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}/.git" ]; then
-                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}" 2>/dev/null && \
-                 git pull >/dev/null 2>/dev/null && git submodule update --init --recursive >/dev/null 2>/dev/null)
+                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github_var_plugin}" >/dev/null 2>&1 && \
+                 git pull >/dev/null 2>&1 && git submodule update --init --recursive >/dev/null 2>&1)
             else
-                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>/dev/null && \
-                git clone --depth=1 "${_shundle_install_var_url}" "${_shundle_install_github_var_plugin}" >/dev/null 2>/dev/null && \
-                cd "${_shundle_install_github_var_plugin}" && git config core.sparsecheckout true >/dev/null 2>/dev/null && \
+                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
+                git clone --depth=1 "${_shundle_install_var_url}" "${_shundle_install_github_var_plugin}" >/dev/null 2>&1 && \
+                cd "${_shundle_install_github_var_plugin}" && git config core.sparsecheckout true >/dev/null 2>&1 && \
                 printf "%s" "${_shundle_install_github_var_plugin}" > .git/info/sparse-checkout && \
-                git read-tree -m -u HEAD >/dev/null 2>/dev/null)
+                git read-tree -m -u HEAD >/dev/null 2>&1)
             fi
         fi
 
-        #1.- checkout everything, delete extra information (currently using this)
+        #1.- checkout everything, delete extra data (currently using this method)
         #------------------------------------------------------------------------
         #git clone --dept=1 somerepo somedir
         #cd somedir
@@ -169,8 +165,8 @@ _shundle_install()
         #printf "%s\\n" "test" > .git/info/sparse-checkout
         #git read-tree -m -u HEAD
 
-        #2.- define what to download, checkout latter, download less that the above?: NO
-        #---------------------------------------------------------------------------------------------------
+        #2.- checkout specific directories, for some weird reason it download more stuff this way
+        #----------------------------------------------------------------------------------------
         #mkdir plugin1
         #cd plugin1
         #git init
@@ -179,16 +175,16 @@ _shundle_install()
         #git remote add -f origin http://url.git
         #git pull origin master
 
-        #3.- checkout everything, delete extra information for ever, sucky update system
-        #-------------------------------------------------------------------------------
+        #3.- checkout everything, delete meta data, it works but makes a sucky update system
+        #-----------------------------------------------------------------------------------
         #git clone https://github.com/chilicuil/t plugin1
         #cd plugin1
         #git filter-branch --prune-empty --subdirectory-filter plugin1 -- --all
         #git reflog expire --expire=now --all
         #git gc --aggressive --prune=now
 
-        #4.- define what to download, checkout latter, download less that the above?, sucky update system
-        #------------------------------------------------------------------------------------------------
+        #4.- checkout specific directories, delete meta data, it works but makes a sucky update system
+        #---------------------------------------------------------------------------------------------
         #mkdir plugin1
         #cd plugin1
         #git init
@@ -210,28 +206,93 @@ _shundle_install()
         #echo 'plugin1/' >.git/info/sparse-checkout
         #git remote add -f origin http://url.git
         #git pull origin master
-        echo install_git
+        printf "%s\\n" "Raw git installation has not been defined"
     }
 
-    _shundle_install_http()
+    _shundle_install_web()
     {
-        echo install_http
-        #if has shell bang, treat it as no shundle specific plugin
+        _shundle_install_web_var_plugin="${1##*/}"
+        _shundle_install_web_var_plugin="${_shundle_install_web_var_plugin%.*}"
+
+        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_web_var_plugin}" ] && [ -z "${_shundle_install_var_update}" ]; then
+            return 0
+        else
+            if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_web_var_plugin}/bin" ]; then
+                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_web_var_plugin}/bin" >/dev/null 2>&1 && \
+                mkdir old >/dev/null 2>&1 && mv "${1##*/}" old/ ';' >/dev/null 2>&1 && \
+                { ${_wget} "${1}" >/dev/null 2>&1 && rm -rf old/*   >/dev/null 2>&1 || { mv old/* . >/dev/null 2>&1 ; false ; } })
+            else
+                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
+                mkdir "${_shundle_install_web_var_plugin}" >/dev/null 2>&1 && \
+                mkdir "${_shundle_install_web_var_plugin}/bin" >/dev/null 2>&1 && \
+                cd "${_shundle_install_web_var_plugin}/bin" >/dev/null 2>&1 && ${_wget} "${1}" >/dev/null 2>&1 && chmod +x "${1##*/}" && \
+                printf "%s\\n" "# Name:         ${_shundle_install_web_var_plugin}" > ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Description:  remote script"  >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_web_var_plugin}=\"${SHUNDLE_HOME}/bundle/${_shundle_install_web_var_plugin}/bin/${1##*/}\"" >> ../"${_shundle_install_web_var_plugin}" && \
+                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_web_var_plugin}")
+            fi
+        fi
     }
 
     _shundle_install_local()
     {
-        echo install_local
+        _shundle_install_local_var_plugin="${1##*/}"
+        _shundle_install_local_var_plugin="${_shundle_install_local_var_plugin%.*}"
+
+        case "${1}" in
+            \$*)   _shundle_install_local_var_orig="$(eval "printf "%s" "${1}"")" ;;
+            '~'/*) _shundle_install_local_var_orig="${HOME}/${1#\~/}" ;;
+            *)     _shundle_install_local_var_orig="/${1}" ;;
+        esac
+
+        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_local_var_plugin}" ] && [ -z "${_shundle_install_var_update}" ]; then
+            return 0
+        else
+            if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_local_var_plugin}/bin" ]; then
+                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_local_var_plugin}/bin" >/dev/null 2>&1 && \
+                mkdir old >/dev/null 2>&1 && mv "${1##*/}" old/ ';' >/dev/null 2>&1 && \
+                { cp "${_shundle_install_local_var_orig}" . >/dev/null 2>&1 && rm -rf old/* >/dev/null 2>&1 || { mv old/* . >/dev/null 2>&1 ; false ; } })
+            else
+                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
+                mkdir "${_shundle_install_local_var_plugin}" >/dev/null && \
+                mkdir "${_shundle_install_local_var_plugin}/bin" >/dev/null && \
+                cd "${_shundle_install_local_var_plugin}/bin" >/dev/null && \
+                cp "${_shundle_install_local_var_orig}" . >/dev/null && chmod +x "${1##*/}" && \
+                printf "%s\\n" "# Name:         ${_shundle_install_local_var_plugin}" > ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Description:  local script" >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_local_var_plugin}=\"${1}\"" >> ../"${_shundle_install_local_var_plugin}" && \
+                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_local_var_plugin}")
+            fi
+        fi
     }
 
-    _shundle_install_var_array="$(_shundle_aux_options)"
+    if [ -z "${1}" ]; then
+        _shundle_aux_options
+        _shundle_install_var_array="${SHUNDLE_OPTIONS}"
 
-    while [ "${_shundle_install_var_array}" ]; do
-        _shundle_install_var_element="${_shundle_install_var_array%%,*}"
-        _shundle_install_aux "${_shundle_install_var_element}"
-        [ X"${_shundle_install_var_array}" = X"${_shundle_install_var_element}" ] &&\
-            ${_shundle_install_var_array}='' || _shundle_install_var_array="${_shundle_install_var_array#*,}"
-    done
+        while [ "${_shundle_install_var_array}" ]; do
+            _shundle_install_var_element="${_shundle_install_var_array%%,*}"
+            _shundle_install_aux "${_shundle_install_var_element}"
+            [ X"${_shundle_install_var_array}" = X"${_shundle_install_var_element}" ] &&\
+                ${_shundle_install_var_array}='' || _shundle_install_var_array="${_shundle_install_var_array#*,}"
+        done
+    else
+        for _shundle_install_param; do
+            _shundle_install_aux "${_shundle_install_param}"
+        done
+    fi
     printf "\\n"
 
     #TODO 02-10-2013 05:12 >> activate newly added bundles on .bashrc
@@ -240,19 +301,18 @@ _shundle_install()
 
 _shundle_remove()
 {
-    [ -z "${1}" ] && return 1
-    [ X"${1}" = X"shundle" ] && _die "shundle: cannot remove myself!"
-    if [ -d "${SHUNDLE_HOME}/bundle/${1}" ]; then
-        printf "%s\\n" "[-] removing ${1}"
-        rm -rf "${SHUNDLE_HOME}/bundle/${1}"
-    else
-        return 1
-    fi
+    for _shundle_remove_param; do
+        [ X"${_shundle_remove_param}" = X"shundle" ] && _die "shundle: cannot remove myself!"
+        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}" ]; then
+            printf "%s\\n" "[-] removing ${_shundle_remove_param}"
+            rm -rf "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
+        fi
+    done
 }
 
 _shundle_search()
 {
-    printf "%s\\n" "_shundle_search"
+    printf "%s\\n" "search module has not been defined"
     #TODO 02-10-2013 05:12 >> show description in search results
 }
 
@@ -263,7 +323,8 @@ _shundle_update()
 
 _shundle_clean()
 {
-    _shundle_clean_var_array_tmp="$(_shundle_aux_options)"
+    _shundle_aux_options
+    _shundle_clean_var_array_tmp="${SHUNDLE_OPTIONS}"
     while [ "${_shundle_clean_var_array_tmp}" ]; do
         _shundle_clean_var_element="${_shundle_clean_var_array_tmp%%,*}"
         _shundle_clean_var_element="${_shundle_clean_var_element##*/}"
@@ -283,18 +344,18 @@ _shundle_list()
 {
     _shundle_list_printf()
     {
-        printf "    %b%s%b%s\\n" "${_BIN_SHUNDLE_ENV_GREEN}" "$(printf "%s" "${1}" |  cut -d" " -f1)" \
+        printf "   %b%s%b%s\\n" "${_BIN_SHUNDLE_ENV_GREEN}" "$(printf "%s" "${1}" |  cut -d" " -f1)" \
             "${_BIN_SHUNDLE_ENV_NORMAL}" "$(printf "%s" "${1}" |  cut -d" " -f2-)"
     }
 
-    printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_BLUE}" "plugins" "${_BIN_SHUNDLE_ENV_NORMAL}"
+    #printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_BLUE}" "Plugins:" "${_BIN_SHUNDLE_ENV_NORMAL}"
 
     for _shundle_list_var_plugin in "${SHUNDLE_HOME}"/bundle/*; do
         _shundle_list_var_bplugin="${_shundle_list_var_plugin##*/}"
         if _shundle_aux_loaded ${SHUNDLE_PLUGINS} ${_shundle_list_var_bplugin}; then
-            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" " +${_shundle_list_var_bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" "${_shundle_list_var_bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         else
-            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_YELLOW}" "  ${_shundle_list_var_bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_YELLOW}" "${_shundle_list_var_bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         fi
 
         if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_list_var_bplugin}/${_shundle_list_var_bplugin}" ]; then
@@ -304,7 +365,7 @@ _shundle_list()
         if [ -f "${_shundle_list_var_plugin}/${_shundle_list_var_bplugin}" ]; then
             _shundle_list_var_description="$(head "${_shundle_list_var_plugin}/${_shundle_list_var_bplugin}" | sed '/[D|d]escription:/!d' | cut -d" " -f2-)"
             [ -n "${_shundle_list_var_description}" ] && _shundle_list_printf "${_shundle_list_var_description}"
-            _shundle_list_var_home="$(head "${_shundle_list_var_plugin}/${_shundle_list_var_bplugin}" | sed '/[H|h]ome:/!d' | cut -d" " -f2-)"
+            _shundle_list_var_home="$(head "${_shundle_list_var_plugin}/${_shundle_list_var_bplugin}" | sed '/[S|s]ource:/!d' | cut -d" " -f2-)"
             [ -n "${_shundle_list_var_home}" ] && _shundle_list_printf "${_shundle_list_var_home}"
             _shundle_list_var_support="$(head "${_shundle_list_var_plugin}/${_shundle_list_var_bplugin}" | sed '/[S|s]hell:/!d' | cut -d" " -f2-)"
             [ -n "${_shundle_list_var_support}" ] && _shundle_list_printf "${_shundle_list_var_support}"
@@ -312,10 +373,14 @@ _shundle_list()
     done
 }
 
+_wget="$(command -v "wget")"
+[ -z "${_wget}" ] && _wget="$(command -v "curl") -O"
+[ -z "${_wget}" ] && _wget="$(command -v "fetch")"
+
 if ! _whereis git >/dev/null; then
-    printf "%s\\n" "shundle: git not found!"; exit 1
-elif ! _whereis wget >/dev/null; then
-    printf "%s\\n" "shundle: wget not found!"; exit 1
+    _die "shundle: git not found!"
+elif [ -z "${_wget}" ]; then
+    _die "shundle: wget|curl|fetch not found!"
 fi
 
 if [ "${#}" -lt 1 ]; then
@@ -323,12 +388,12 @@ if [ "${#}" -lt 1 ]; then
 else
     case "${1}" in
         #install|remove|search|update|clean|list) _shundle_$1 "$2";;
-        i*) _shundle_install "${2}";;
-        r*) _shundle_remove  "${2}";;
-        s*) _shundle_search  "${2}";;
-        u*) _shundle_update  "${2}";;
-        c*) _shundle_clean   "${2}";;
-        l*) _shundle_list    "${2}";;
+        i*) shift; _shundle_install "${@}";;
+        r*) shift; _shundle_remove  "${@}";;
+        s*) shift; _shundle_search  "${2}";;
+        u*) _shundle_update  ;;
+        c*) _shundle_clean   ;;
+        l*) _shundle_list    ;;
         *) _usage ;;
     esac
 fi
