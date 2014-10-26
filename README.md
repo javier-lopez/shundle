@@ -19,7 +19,7 @@
    Sample `.bashrc` (if not using bash use your shell init profile):
 
    ```sh
-   if [ -d ~/.shundle/bundle/shundle ]; then
+   if [ -f ~/.shundle/bundle/shundle/shundle ]; then
        .  ~/.shundle/bundle/shundle/shundle
        #let shundle manage shundle, required!
        Bundle='chilicuil/shundle'
@@ -38,10 +38,10 @@
        #from the web
        #Bundle='http://domain.com/awesome-script'
 
-       #from your file system
+       #from the file system
        #Bundle='file://path/to/script'
    fi
-   
+
    # Brief help
    # shundle list         - list installed bundles
    # shundle install      - install configured bundles

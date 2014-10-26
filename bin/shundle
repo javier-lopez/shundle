@@ -122,7 +122,7 @@ _shundle_install()
                 #Bundle 'colorize'
             esac
         fi
-        
+
         #TODO 29-07-2014 13:52 >> add debug information on fail
         [ X"${?}" = X"0" ] || printf "    %s" "failed"
     }
@@ -398,4 +398,4 @@ else
     esac
 fi
 
-# vim: set ts=8 sw=4 tw=0 ft=sh : 
+# vim: set ts=8 sw=4 tw=0 ft=sh :
