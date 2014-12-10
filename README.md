@@ -101,7 +101,3 @@ See [Shundle contributors](https://github.com/chilicuil/shundle/graphs/contribut
 * handle dependencies
 * search by description as well
 * make it rock!
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/chilicuil/shundle/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
-
