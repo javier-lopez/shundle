@@ -30,6 +30,11 @@ _usage()
     return 1
 }
 
+_false()
+{
+    return 1
+}
+
 _whereis()
 {
     [ -z "${1}" ] && return 1
@@ -87,50 +92,51 @@ _shundle_install()
         _shundle_install_header
         printf "\\n [+] Bundle '%s' " "${1}"
 
-        _shundle_install__prefix="${1%:*}"
-        _shundle_install__sufix="${1#*:}"
+        _shundle_install__handler="${1%%:*}:"
+        _shundle_install__bundle="${1#$_shundle_install__handler}"
 
-        if [ X"${_shundle_install__prefix}" = X"${_shundle_install__sufix}" ]; then
-            case "${_shundle_install__sufix}" in
-                /*|~*|\$*) _shundle_install_local  "${_shundle_install__sufix}" ;;
-                *)         _shundle_install_github "${_shundle_install__sufix}" ;;
-            esac
-        else
-            case "${_shundle_install__prefix}" in
-                gh|github|git@github.com) _shundle_install_github "${_shundle_install__sufix}"    ;;
-                git)                      _shundle_install_git    "${_shundle_install__sufix}"    ;;
-                file)                     _shundle_install_local  "${_shundle_install__sufix#//}" ;;
-                http|https|ftp)           _shundle_install_web    "${1}"                             ;;
-                #Bundle 'gh:chilicuil/shundle-plugins/eternalize'
-                #Bundle 'github:chilicuil/shundle-plugins/colorize'
-                #Bundle 'git@github.com:chilicuil/shundle-plugins/aliazator'
-                #Bundle 'username/repository'
-                #Bundle 'username/repository.git'
+        case "${_shundle_install__handler}" in
+            ''|*/*) case "${1}" in
+                    /*|~*|\$*) _shundle_install_local  "${1}" ;;
+                    *)         _shundle_install_github "${1}" ;;
+                esac
+                ;;
+            gh*|github*|git@github.com*) _shundle_install_github "${_shundle_install__bundle}"    ;;
+            git*)                        _shundle_install_git    "${_shundle_install__bundle}"    ;;
+            file*)                       _shundle_install_local  "${_shundle_install__bundle#//}" ;;
+            http*|https*|ftp*)           _shundle_install_web    "${1}"                           ;;
+            *) _shundle_install__error="unknown handler: "${_shundle_install__handler}""; _false  ;;
+        esac
+        #Bundle 'gh:chilicuil/shundle-plugins/eternalize'
+        #Bundle 'github:chilicuil/shundle-plugins/colorize'
+        #Bundle 'git@github.com:chilicuil/shundle-plugins/aliazator'
+        #Bundle 'username/repository'
+        #Bundle 'username/repository.git'
+        #Bundle 'username/repository:master'
+        #Bundle 'username/repository.git:1234567'
 
-                #Bundle 'https://domain.tld/path/awesome-script'
-                #Bundle 'http://domain.tld/path/awesome-script'
-                #Bundle 'ftp://domain.tld/path/awesome-script'
+        #Bundle 'https://domain.tld/path/awesome-script'
+        #Bundle 'http://domain.tld/path/awesome-script'
+        #Bundle 'ftp://domain.tld/path/awesome-script'
 
-                #Bundle 'file://~/path/awesome-script'
-                #Bundle 'file://$HOME/path/awesome-script'
-                #Bundle 'file://home/username/path/awesome-script'
-                #Bundle '/home/username/path/awesome-script'
-                #Bundle '$HOME/path/awesome-script'
-
-                #"plugins repository? https://github.com/chilicuil/shundle-plugins
-                #Bundle 'colorize'
-            esac
-        fi
+        #Bundle 'file://~/path/awesome-script'
+        #Bundle 'file://$HOME/path/awesome-script'
+        #Bundle 'file://home/username/path/awesome-script'
+        #Bundle '/home/username/path/awesome-script'
+        #Bundle '$HOME/path/awesome-script'
 
         #TODO 29-07-2014 13:52 >> add debug information on fail
-        [ X"${?}" = X"0" ] || printf "    %s" "failed"
+        [ X"${?}" = X"0" ] || { printf "    %s" "failed"; printf "\\n%s" "${_shundle_install__error}"; }
     }
 
     _shundle_install_github()
     {
         _shundle_install_github__default_protocol="https"
-        _shundle_install_github__author="${1%/*}"
-        _shundle_install_github__rep="${1#*/}"
+        _shundle_install_github__revision=":${1##*:}"
+        _shundle_install_github__bundle="${1%$_shundle_install_github__revision}"
+
+        _shundle_install_github__author="${_shundle_install_github__bundle%/*}"
+        _shundle_install_github__rep="${_shundle_install_github__bundle#*/}"
 
         case "${_shundle_install_github__rep}" in
             */*) _shundle_install_github__rep="" ;;
@@ -138,21 +144,34 @@ _shundle_install()
 
         _shundle_install__url="${_shundle_install_github__default_protocol}://github.com/${_shundle_install_github__author}/${_shundle_install_github__rep}"
 
-        _shundle_install_github__plugin="${1##*/}"
-        _shundle_install_github__plugin="${_shundle_install_github__plugin%.*}"
+        _shundle_install_github__bundle="${_shundle_install_github__bundle##*/}"
+        _shundle_install_github__bundle="${_shundle_install_github__bundle%.*}"
 
-        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__plugin}" ] && [ -z "${_shundle_install__update}" ]; then
+        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" ] && [ -z "${_shundle_install__update}" ]; then
+            #already installed and without a request for update
             return 0
         else
-            if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__plugin}/.git" ]; then
-                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__plugin}" >/dev/null 2>&1 && \
-                 git pull >/dev/null 2>&1 && git submodule update --init --recursive >/dev/null 2>&1)
+            if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}/.git" ]; then
+                if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
+                    _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
+                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null)"
+                fi
             else
-                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
-                git clone --depth=1 "${_shundle_install__url}" "${_shundle_install_github__plugin}" >/dev/null 2>&1 && \
-                cd "${_shundle_install_github__plugin}" && git config core.sparsecheckout true >/dev/null 2>&1 && \
-                printf "%s" "${_shundle_install_github__plugin}" > .git/info/sparse-checkout && \
-                git read-tree -m -u HEAD >/dev/null 2>&1)
+                if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
+                    _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle &&
+                    git clone -q --depth=1 "${_shundle_install__url}" "${_shundle_install_github__bundle}" 2>&1 >/dev/null &&
+                    cd "${_shundle_install_github__bundle}" && git config core.sparsecheckout true 2>&1 >/dev/null         &&
+                    printf "%s" "${_shundle_install_github__bundle}" > .git/info/sparse-checkout &&
+                    git read-tree -m -u HEAD 2>&1 >/dev/null)"
+                else
+                    _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle &&
+                    git clone -q "${_shundle_install__url}" "${_shundle_install_github__bundle}" 2>&1 >/dev/null &&
+                    cd "${_shundle_install_github__bundle}" &&
+                    git checkout -q "${_shundle_install_github__revision#:}" 2>&1 >/dev/null &&
+                    git config core.sparsecheckout true 2>&1 >/dev/null &&
+                    printf "%s" "${_shundle_install_github__bundle}" > .git/info/sparse-checkout &&
+                    git read-tree -m -u HEAD 2>&1 >/dev/null)"
+                fi
             fi
         fi
 
@@ -217,24 +236,25 @@ _shundle_install()
             return 0
         else
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin" ]; then
-                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin" >/dev/null 2>&1 && \
-                mkdir old >/dev/null 2>&1 && mv "${1##*/}" old/ ';' >/dev/null 2>&1 && \
-                { ${_wget} "${1}" >/dev/null 2>&1 && rm -rf old/*   >/dev/null 2>&1 || { mv old/* . >/dev/null 2>&1 ; false ; } })
+                _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null &&
+                mkdir old 2>&1 >/dev/null && mv "${1##*/}" old/ ';' 2>&1 >/dev/null &&
+                { ${_wget} "${1}" 2>&1 >/dev/null && rm -rf old/* || { mv old/* . 2>&1 >/dev/null; _false; } })"
             else
-                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
-                mkdir "${_shundle_install_web__plugin}" >/dev/null 2>&1 && \
-                mkdir "${_shundle_install_web__plugin}/bin" >/dev/null 2>&1 && \
-                cd "${_shundle_install_web__plugin}/bin" >/dev/null 2>&1 && ${_wget} "${1}" >/dev/null 2>&1 && chmod +x "${1##*/}" && \
-                printf "%s\\n" "# Name:         ${_shundle_install_web__plugin}" > ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Description:  remote script"  >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_web__plugin}" && \
-                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_web__plugin}" && \
-                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_web__plugin}=\"${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin/${1##*/}\"" >> ../"${_shundle_install_web__plugin}" && \
-                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_web__plugin}")
+                _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle 2>&1 >/dev/null &&
+                mkdir "${_shundle_install_web__plugin}" 2>&1 >/dev/null     &&
+                mkdir "${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null &&
+                cd "${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null && ${_wget} "${1}" 2>&1 >/dev/null &&
+                chmod +x "${1##*/}" 2>&1 >/dev/null &&
+                printf "%s\\n" "# Name:         ${_shundle_install_web__plugin}" > ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Description:  remote script"  >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_web__plugin}" &&
+                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_web__plugin}" &&
+                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_web__plugin}=\"${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin/${1##*/}\"" >> ../"${_shundle_install_web__plugin}" &&
+                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_web__plugin}")"
             fi
         fi
     }
@@ -254,25 +274,26 @@ _shundle_install()
             return 0
         else
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_local__plugin}/bin" ]; then
-                (cd "${SHUNDLE_HOME}/bundle/${_shundle_install_local__plugin}/bin" >/dev/null 2>&1 && \
-                mkdir old >/dev/null 2>&1 && mv "${1##*/}" old/ ';' >/dev/null 2>&1 && \
-                { cp "${_shundle_install_local__orig}" . >/dev/null 2>&1 && rm -rf old/* >/dev/null 2>&1 || { mv old/* . >/dev/null 2>&1 ; false ; } })
+                _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_local__plugin}/bin" 2>&1 >/dev/null &&
+                mkdir old 2>&1 >/dev/null && mv "${1##*/}" old/ ';' 2>&1 >/dev/null &&
+                { cp "${_shundle_install_local__orig}" . 2>&1 >/dev/null && rm -rf old/* 2>&1 >/dev/null || { mv old/* . 2>&1 >/dev/null ; _false ; } })"
             else
-                (cd "${SHUNDLE_HOME}"/bundle >/dev/null 2>&1 && \
-                mkdir "${_shundle_install_local__plugin}" >/dev/null && \
-                mkdir "${_shundle_install_local__plugin}/bin" >/dev/null && \
-                cd "${_shundle_install_local__plugin}/bin" >/dev/null && \
-                cp "${_shundle_install_local__orig}" . >/dev/null && chmod +x "${1##*/}" && \
-                printf "%s\\n" "# Name:         ${_shundle_install_local__plugin}" > ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Description:  local script" >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_local__plugin}" && \
-                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_local__plugin}" && \
-                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_local__plugin}=\"${1}\"" >> ../"${_shundle_install_local__plugin}" && \
-                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_local__plugin}")
+                _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle 2>&1 >/dev/null &&
+                mkdir "${_shundle_install_local__plugin}" 2>&1 >/dev/null &&
+                mkdir "${_shundle_install_local__plugin}/bin" 2>&1 >/dev/null &&
+                cd "${_shundle_install_local__plugin}/bin" 2>&1 >/dev/null &&
+                cp "${_shundle_install_local__orig}" . 2>&1 >/dev/null  &&
+                chmod +x "${1##*/}" 2>&1 >/dev/null &&
+                printf "%s\\n" "# Name:         ${_shundle_install_local__plugin}" > ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Description:  local script" >> ../"${_shundle_install_local__plugin}"   &&
+                printf "%s\\n" "# Licence:      unknown"        >> ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Source:       ${1}"           >> ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Version:      0.1"            >> ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Shell:        $(awk -F"/" '{print $NF; exit}' "${1##*/}")" >> ../"${_shundle_install_local__plugin}" &&
+                printf "%s\\n" "# Depends:      none"           >> ../"${_shundle_install_local__plugin}" &&
+                printf "\\n%s\\n" "_shundle_expose ${_shundle_install_local__plugin}=\"${1}\"" >> ../"${_shundle_install_local__plugin}" &&
+                printf "\\n%s\\n" "# vim: set ts=8 sw=4 tw=0 ft=sh :" >> ../"${_shundle_install_local__plugin}")"
             fi
         fi
     }
@@ -294,8 +315,8 @@ _shundle_install()
     fi
     printf "\\n"
 
-    #TODO 02-10-2013 05:12 >> activate newly added bundles on .bashrc
-    #TODO 02-10-2013 05:12 >> allow specify revision/version?
+    #TODO 02-10-2013 05:12 >> activate newly added bundles?
+    #TODO 02-10-2013 05:12 >> allow specify version?
 }
 
 _shundle_remove()

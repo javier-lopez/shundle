@@ -28,7 +28,8 @@
 
        #from GitHub
        Bundle='gh:chilicuil/shundle-plugins/eternalize'
-       Bundle='github:chilicuil/shundle-plugins/colorize'
+       Bundle='github:chilicuil/shundle-plugins/colorize:master'
+       Bundle='github:chilicuil/shundle-plugins/autocd:f7916'
        Bundle='https://github.com/chilicuil/shundle-plugins/aliazator.git'
            ALIAZATOR_PLUGINS="installed"
 
@@ -97,7 +98,4 @@ See [Shundle contributors](https://github.com/chilicuil/shundle/graphs/contribut
 * improve install|update visualization
 * tests
 * improve error handling
-* allow specifying revision/version?
-* handle dependencies
-* search by description as well
 * make it rock!

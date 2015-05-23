@@ -23,7 +23,7 @@ fi
 _shundle__options="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#") print}' "${SHUNDLE_RC}")"
 for _shundle__bundle in $(printf "%s" "${_shundle__options}"|awk '{if($0~"Bundle="){sub(/Bundle=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
     _shundle__bundle_raw="${_shundle__bundle##*/}"    #basename
-    #_shundle__bundle_raw="${_shundle__bundle_raw%:*}" #remove revision, version
+    _shundle__bundle_raw="${_shundle__bundle_raw%:*}" #remove revision, version
     SHUNDLE_PLUGINS="${SHUNDLE_PLUGINS}${_shundle__bundle_raw%.*}," #remove .git extension
 done
 eval "${_shundle__options}"
