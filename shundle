@@ -7,18 +7,26 @@
 # Shell:        sh
 # Depends:      none
 
-#ensure we've OPTIONS="option" before starting
-[ -n "${BASH_VERSION}" ] && SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
-#ZSH_VERSION=zsh
-
-if [ -n "${SHUNDLE_RC}" ]; then
-    _shundle_var_options="$(awk '/bundle\/shundle/,0 {if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#") print }' "${SHUNDLE_RC}")"
-    for _shundle_var_bundle in $(printf "%s" "${_shundle_var_options}" | awk '{ if ($0 ~ "Bundle=") { sub(/Bundle=/,""); gsub(/'\''/,""); gsub(/'\"'/,""); print $1 }}'); do #'
-        _shundle_var_bundle_raw="${_shundle_var_bundle##*/}" #basename
-        SHUNDLE_PLUGINS="${SHUNDLE_PLUGINS}${_shundle_var_bundle_raw%.*}," #remove .git extension
-    done
-    eval "${_shundle_var_options}"
+if [ -z "${SHUNDLE_RC}" ]; then
+    if [ -n "${BASH_VERSION}" ]; then
+        SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
+    elif [ -n "${ZSH_VERSION}" ]; then
+        SHUNDLE_RC="${HOME}/.zshrc"
+    elif [ -n "${KSH_VERSION}" ] || [ -n "${FCEDIT}" ]; then
+        [ -n "${ENV}" ] && SHUNDLE_RC="${ENV}" || SHUNDLE_RC="${HOME}/.kshrc"
+    else
+        return 1
+    fi
 fi
+
+#ensure we've OPTIONS="option" before starting
+_shundle__options="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#") print}' "${SHUNDLE_RC}")"
+for _shundle__bundle in $(printf "%s" "${_shundle__options}"|awk '{if($0~"Bundle="){sub(/Bundle=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
+    _shundle__bundle_raw="${_shundle__bundle##*/}"    #basename
+    #_shundle__bundle_raw="${_shundle__bundle_raw%:*}" #remove revision, version
+    SHUNDLE_PLUGINS="${SHUNDLE_PLUGINS}${_shundle__bundle_raw%.*}," #remove .git extension
+done
+eval "${_shundle__options}"
 
 #===============================================================================
 #================================ Settings =====================================
@@ -53,12 +61,12 @@ _shundle_aux_loaded()
     if [ -z "${1}" ] || [ -z "${2}" ]; then
         return 1
     else
-        _shundle_aux_loaded_var_l="${1}"
-        while [ "${_shundle_aux_loaded_var_l}" ]; do
-            _shundle_aux_loaded_var_option="${_shundle_aux_loaded_var_l%%,*}"
-            [ X"${2}" = X"${_shundle_aux_loaded_var_option}" ] && return 0
-            [ X"${_shundle_aux_loaded_var_l}" = X"${_shundle_aux_loaded_var_option}" ] &&\
-                _shundle_aux_loaded_var_l='' || _shundle_aux_loaded_var_l="${_shundle_aux_loaded_var_l#*,}"
+        _shundle_aux_loaded__l="${1}"
+        while [ "${_shundle_aux_loaded__l}" ]; do
+            _shundle_aux_loaded__option="${_shundle_aux_loaded__l%%,*}"
+            [ X"${2}" = X"${_shundle_aux_loaded__option}" ] && return 0
+            [ X"${_shundle_aux_loaded__l}" = X"${_shundle_aux_loaded__option}" ] &&\
+                _shundle_aux_loaded__l='' || _shundle_aux_loaded__l="${_shundle_aux_loaded__l#*,}"
         done
         return 1
     fi
@@ -68,20 +76,20 @@ _shundle_source()
 {
     [ -z "${1}" ] && return 1
 
-    _shundle_source_var_plugin="${1##*/}"
-    _shundle_aux_loaded "${_shundle_source_var_loaded}" "${_shundle_source_var_plugin}" && return 0
+    _shundle_source__plugin="${1##*/}"
+    _shundle_aux_loaded "${_shundle_source__loaded}" "${_shundle_source__plugin}" && return 0
 
-    if [ -f "${1}/${_shundle_source_var_plugin}" ]; then
-        if . "${1}/${_shundle_source_var_plugin}"; then
-            _shundle_verbose "+ shundle-source \""${1}"/"${_shundle_source_var_plugin}""\"
-            _shundle_source_var_loaded="${_shundle_source_var_loaded}${_shundle_source_var_plugin},"
+    if [ -f "${1}/${_shundle_source__plugin}" ]; then
+        if . "${1}/${_shundle_source__plugin}"; then
+            _shundle_verbose "+ shundle-source \""${1}"/"${_shundle_source__plugin}""\"
+            _shundle_source__loaded="${_shundle_source__loaded}${_shundle_source__plugin},"
         else
-            _shundle_verbose "- shundle-source \""${1}"/"${_shundle_source_var_plugin}""\"
+            _shundle_verbose "- shundle-source \""${1}"/"${_shundle_source__plugin}""\"
         fi
     elif [ -f "${1}" ]; then
         if . "${1}"; then
             _shundle_verbose "+ shundle-source \""${1}""\"
-            _shundle_source_var_loaded="${_shundle_source_var_loaded}${_shundle_source_var_plugin},"
+            _shundle_source__loaded="${_shundle_source__loaded}${_shundle_source__plugin},"
         else
             _shundle_verbose "- shundle-source \""${1}""\"
         fi
@@ -95,32 +103,33 @@ _shundle_init()
     #heavy functions should be written as separe files and be exposed (_shundle_expose)
     #to maintain a fast initialization process
     for plugin in "${SHUNDLE_HOME}"/bundle/*; do
-        _shundle_init_var_bplugin="${plugin##*/}"
-        [ X"${_shundle_init_var_bplugin}" = X"shundle" ] && continue #avoid a loop
+        _shundle_init__bplugin="${plugin##*/}"
+        [ X"${_shundle_init__bplugin}" = X"shundle" ] && continue #avoid endless loop
         #only non commented plugins are loaded
-        _shundle_aux_loaded "${SHUNDLE_PLUGINS}" "${_shundle_init_var_bplugin}" || continue
+        _shundle_aux_loaded "${SHUNDLE_PLUGINS}" "${_shundle_init__bplugin}" || continue
 
-        [ -f "${plugin}/${_shundle_init_var_bplugin}/${_shundle_init_var_bplugin}" ] && \
-            _shundle_init_var_bplugin="${_shundle_init_var_bplugin}/${_shundle_init_var_bplugin}"
+        [ -f "${plugin}/${_shundle_init__bplugin}/${_shundle_init__bplugin}" ] && \
+            _shundle_init__bplugin="${_shundle_init__bplugin}/${_shundle_init__bplugin}"
 
-        #_shundle_init_var_dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init_var_bplugin" | cut -d: -f2 | tr -d " \t\n\r")
-        #_shundle_init_var_dplugin=$(awk 'BEGIN {FS=":"} { if ($0 ~ "[D|d]epends:") print $2}' "$plugin"/"$_shundle_init_var_bplugin" | tr -d " \t\n\r") #faster
-        _shundle_init_var_dplugin="$(awk '{ if ($0 ~ "[D|d]epends:") print $3}' "${plugin}/${_shundle_init_var_bplugin}")"
+        #_shundle_init__dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init__bplugin" | cut -d: -f2 | tr -d " \t\n\r")
+        #faster
+        #_shundle_init__dplugin=$(awk 'BEGIN {FS=":"} { if ($0 ~ "[D|d]epends:") print $2}' "$plugin"/"$_shundle_init__bplugin" | tr -d " \t\n\r")
         #even faster, however it breaks when '#depends: value' is used instead of '# depends: value'
-        if [ X"${_shundle_init_var_dplugin}" = X"none" ] || [ X"${_shundle_init_var_dplugin}" = X"" ]; then
-            _shundle_source "${plugin}/${_shundle_init_var_bplugin}"
-        else
+        _shundle_init__dplugin="$(awk '{if($0~"[D|d]epends:") print $3}' "${plugin}/${_shundle_init__bplugin}")"
+        if [ X"${_shundle_init__dplugin}" = X"none" ] || [ X"${_shundle_init__dplugin}" = X"" ]; then
+            _shundle_source "${plugin}/${_shundle_init__bplugin}"
+        else #load dependencies first
             #http://stackoverflow.com/a/15988793/1724603
-            while [ "${_shundle_init_var_dplugin}" ] ;do
-                _shundle_init_var_dependency="${_shundle_init_var_dplugin%%,*}"
-                if [ -f "${plugin}/../${_shundle_init_var_dependency}/${_shundle_init_var_dependency}" ]; then
-                    _shundle_init_var_oldplugin="${plugin}"; plugin="${plugin}/../${_shundle_init_var_dependency}"
-                    _shundle_source "${plugin}/${_shundle_init_var_dependency}"; plugin="${_shundle_init_var_oldplugin}"
+            while [ "${_shundle_init__dplugin}" ] ;do
+                _shundle_init__dependency="${_shundle_init__dplugin%%,*}"
+                if [ -f "${plugin}/../${_shundle_init__dependency}/${_shundle_init__dependency}" ]; then
+                    _shundle_init__oldplugin="${plugin}"; plugin="${plugin}/../${_shundle_init__dependency}"
+                    _shundle_source "${plugin}/${_shundle_init__dependency}"; plugin="${_shundle_init__oldplugin}"
                 fi
-                [ X"${_shundle_init_var_dplugin}" = X"${_shundle_init_var_dependency}" ] && \
-                    _shundle_init_var_dplugin='' || _shundle_init_var_dplugin="${_shundle_init_var_dplugin#*,}"
+                [ X"${_shundle_init__dplugin}" = X"${_shundle_init__dependency}" ] && \
+                    _shundle_init__dplugin='' || _shundle_init__dplugin="${_shundle_init__dplugin#*,}"
             done
-            _shundle_source "${plugin}/${_shundle_init_var_bplugin}"
+            _shundle_source "${plugin}/${_shundle_init__bplugin}"
         fi
     done
 }
