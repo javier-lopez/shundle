@@ -70,7 +70,8 @@ _shundle_aux_options()
     [ -z "${SHUNDLE_OPTIONS}" ] || return 0
     [ -z "${SHUNDLE_RC}" ]      && return 1
     _shundle_aux_options__subset="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#") print}' "${SHUNDLE_RC}")"
-    for _shundle_aux_options__bundle in $(printf "%s" "${_shundle_aux_options__subset}" | awk '{if($0~"Bundle="){sub(/Bundle=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
+    for _shundle_aux_options__bundle in $(printf "%s" "${_shundle_aux_options__subset}"|\
+    awk '{if($0~"([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])="){sub(/([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
         SHUNDLE_OPTIONS="${SHUNDLE_OPTIONS}${_shundle_aux_options__bundle},"
     done
 }
