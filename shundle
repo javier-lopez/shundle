@@ -8,7 +8,7 @@
 
 if [ -z "${SHUNDLE_RC}" ]; then
     if [ -n "${BASH_VERSION}" ]; then
-        SHUNDLE_RC="$(caller 0 | cut -d" " -f3)"
+        SHUNDLE_RC="$(caller 0 | cut -d" " -f3-)"
     elif [ -n "${ZSH_VERSION}" ]; then
         SHUNDLE_RC="${HOME}/.zshrc"
     elif [ -n "${KSH_VERSION}" ] || [ -n "${FCEDIT}" ]; then
@@ -53,7 +53,17 @@ _shundle_expose()
 {
     #TODO 02-10-2013 15:56 >> maintain a list of exposed plugins
     [ -z "${1}" ] && return 1
-    alias "${@}"  && _shundle_verbose "+ shundle-expose \""${@}""\" || _shundle_verbose "- shundle-expose \""${@}""\"
+
+    #escape whitespaces in paths
+    case "${@}" in
+        *"=/"*) _shundle_expose__alias="$(printf "%s" "$@" | sed 's/ /\\ /g')" ;;
+         *)     _shundle_expose__alias="$(printf "%s" "$@" | awk '{for(i=2;i<NF;i++) $i=$i"\\"}1')" ;;
+                #_shundle_expose__alias="$(printf "%s" "$@" | sed -e 's/ /\\ /g' -e 's/\\ / /1')" ;;
+    esac
+
+    alias "${_shundle_expose__alias}" && \
+        _shundle_verbose "+ shundle-expose \""${@}""\" || \
+        _shundle_verbose "- shundle-expose \""${@}""\"
 }
 
 _shundle_aux_loaded()
