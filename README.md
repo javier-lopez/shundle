@@ -1,6 +1,6 @@
 ## About
 
-[Shundle](https://github.com/chilicuil/shundle/) is short for _sh bundle_ and is a [sh](http://en.wikipedia.org/wiki/Unix_shell) plugin manager.
+[Shundle](https://github.com/javier-lopez/shundle/) is short for _sh bundle_ and is a [sh](http://en.wikipedia.org/wiki/Unix_shell) plugin manager.
 
 <p align="center">
 <img src="http://javier.io/assets/img/shundle-2.gif" alt="shundle"/>
@@ -8,10 +8,10 @@
 
 ## Quick start
 
-1. Set up [Shundle](https://github.com/chilicuil/shundle/):
+1. Set up [Shundle](https://github.com/javier-lopez/shundle/):
 
    ```
-   $ git clone --depth=1 https://github.com/chilicuil/shundle ~/.shundle/bundle/shundle
+   $ git clone --depth=1 https://github.com/javier-lopez/shundle ~/.shundle/bundle/shundle
    ```
 
 2. Configure bundles:
@@ -22,15 +22,15 @@
    if [ -f ~/.shundle/bundle/shundle/shundle ]; then
        .  ~/.shundle/bundle/shundle/shundle
        #let shundle manage shundle, required!
-       Bundle='chilicuil/shundle'
+       Bundle='javier-lopez/shundle'
            #options
            SHUNDLE_ENV_COLOR=1
 
        #from GitHub
-       Bundle='gh:chilicuil/shundle-plugins/eternalize'
-       Bundle='github:chilicuil/shundle-plugins/colorize:master'
-       Bundle='github:chilicuil/shundle-plugins/autocd:f7916'
-       Bundle='https://github.com/chilicuil/shundle-plugins/aliazator.git'
+       Bundle='gh:javier-lopez/shundle-plugins/eternalize'
+       Bundle='github:javier-lopez/shundle-plugins/colorize:master'
+       Bundle='github:javier-lopez/shundle-plugins/autocd:f7916'
+       Bundle='https://github.com/javier-lopez/shundle-plugins/aliazator.git'
            ALIAZATOR_PLUGINS="installed"
 
        #from non GitHub
@@ -65,17 +65,17 @@
 
 ## Uninstalling
 
-If by any reason you dislike [Shundle](https://github.com/chilicuil/shundle) you can uninstall it by removing the top shundle directory:
+If by any reason you dislike [Shundle](https://github.com/javier-lopez/shundle) you can uninstall it by removing the top shundle directory:
 
    ```
    $ rm -rf ~/.shundle
    ```
 
-Please drop me an [email](mailto:m@javier.io) with your suggestions or open [an issue](https://github.com/chilicuil/shundle/issues) describing the problems you faced.
+Please drop me an [email](mailto:m@javier.io) with your suggestions or open [an issue](https://github.com/javier-lopez/shundle/issues) describing the problems you faced.
 
 ## Contributors
 
-See [Shundle contributors](https://github.com/chilicuil/shundle/graphs/contributors)
+See [Shundle contributors](https://github.com/javier-lopez/shundle/graphs/contributors)
 
 *Thank you!*
 
@@ -92,7 +92,7 @@ See [Shundle contributors](https://github.com/chilicuil/shundle/graphs/contribut
 * Shundle tries to be as [KISS](http://en.wikipedia.org/wiki/KISS_principle) as possible
 
 ## TODO:
-[Shundle](https://github.com/chilicuil/shundle/) is a work in progress, so any ideas and patches are appreciated.
+[Shundle](https://github.com/javier-lopez/shundle/) is a work in progress, so any ideas and patches are appreciated.
 
 * write documentation
 * improve install|update visualization

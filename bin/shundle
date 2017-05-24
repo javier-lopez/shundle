@@ -108,9 +108,9 @@ _shundle_install()
             http*|https*|ftp*)           _shundle_install_web    "${1}"                           ;;
             *) _shundle_install__error="unknown handler: "${_shundle_install__handler}""; _false  ;;
         esac
-        #Bundle 'gh:chilicuil/shundle-plugins/eternalize'
-        #Bundle 'github:chilicuil/shundle-plugins/colorize'
-        #Bundle 'git@github.com:chilicuil/shundle-plugins/aliazator'
+        #Bundle 'gh:javier-lopez/shundle-plugins/eternalize'
+        #Bundle 'github:javier-lopez/shundle-plugins/colorize'
+        #Bundle 'git@github.com:javier-lopez/shundle-plugins/aliazator'
         #Bundle 'username/repository'
         #Bundle 'username/repository.git'
         #Bundle 'username/repository:master'
@@ -196,7 +196,7 @@ _shundle_install()
 
         #3.- checkout everything, delete meta data, it works but makes a sucky update system
         #-----------------------------------------------------------------------------------
-        #git clone https://github.com/chilicuil/t plugin1
+        #git clone https://github.com/javier-lopez/t plugin1
         #cd plugin1
         #git filter-branch --prune-empty --subdirectory-filter plugin1 -- --all
         #git reflog expire --expire=now --all
@@ -209,7 +209,7 @@ _shundle_install()
         #git init
         #git config core.sparseCheckout true
         #echo 'plugin1/' >.git/info/sparse-checkout
-        #git remote add -f https://github.com/chilicuil/t
+        #git remote add -f https://github.com/javier-lopez/t
         #git pull origin master
         #git filter-branch --prune-empty --subdirectory-filter plugin1 -- --all
         #git reflog expire --expire=now --all

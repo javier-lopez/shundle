@@ -1,7 +1,7 @@
 # Name:         shundle
 # Author:       Javier Lopez <m@javier.io>
 # Description:  shundle is a simple plugin manager for general purpose shells
-# Source:       http://github.com/chilicuil/shundle
+# Source:       http://github.com/javier-lopez/shundle
 # Version:      0.1
 # Shell:        sh
 # Depends:      none
