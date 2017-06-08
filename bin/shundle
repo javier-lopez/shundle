@@ -7,6 +7,9 @@
 #required for clean|install at first deployment time
 [ -z "${SHUNDLE_HOME}" ] && SHUNDLE_HOME="${HOME}/.shundle"
 
+#non interactive git
+GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
+
 if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ]; then
     _BIN_SHUNDLE_ENV_RED='\033[1;31m'
     _BIN_SHUNDLE_ENV_BLUE='\033[1;34m'
@@ -136,6 +139,10 @@ _shundle_install()
         _shundle_install_github__revision=":${1##*:}"
         _shundle_install_github__bundle="${1%$_shundle_install_github__revision}"
 
+        if [ "${GIT_VERSION}" -lt "230" ]; then #non interactive git
+            _shundle_install_github__credentials="git::@"
+        fi
+
         _shundle_install_github__author="${_shundle_install_github__bundle%/*}"
         _shundle_install_github__rep="${_shundle_install_github__bundle#*/}"
 
@@ -143,7 +150,9 @@ _shundle_install()
             */*) _shundle_install_github__rep="" ;;
         esac
 
-        _shundle_install__url="${_shundle_install_github__default_protocol}://github.com/${_shundle_install_github__author}/${_shundle_install_github__rep}"
+        _shundle_install__url="${_shundle_install_github__default_protocol}"
+        _shundle_install__url="${_shundle_install__url}://${_shundle_install_github__credentials}github.com"
+        _shundle_install__url="${_shundle_install__url}/${_shundle_install_github__author}/${_shundle_install_github__rep}"
 
         _shundle_install_github__bundle="${_shundle_install_github__bundle##*/}"
         _shundle_install_github__bundle="${_shundle_install_github__bundle%.*}"
@@ -239,12 +248,12 @@ _shundle_install()
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin" ]; then
                 _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null &&
                 mkdir old 2>&1 >/dev/null && mv "${1##*/}" old/ ';' 2>&1 >/dev/null &&
-                { ${_wget} "${1}" 2>&1 >/dev/null && rm -rf old/* || { mv old/* . 2>&1 >/dev/null; _false; } })"
+                { ${WGET} "${1}" 2>&1 >/dev/null && rm -rf old/* || { mv old/* . 2>&1 >/dev/null; _false; } })"
             else
                 _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle 2>&1 >/dev/null &&
                 mkdir "${_shundle_install_web__plugin}" 2>&1 >/dev/null     &&
                 mkdir "${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null &&
-                cd "${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null && ${_wget} "${1}" 2>&1 >/dev/null &&
+                cd "${_shundle_install_web__plugin}/bin" 2>&1 >/dev/null && ${WGET} "${1}" 2>&1 >/dev/null &&
                 chmod +x "${1##*/}" 2>&1 >/dev/null &&
                 printf "%s\\n" "# Name:         ${_shundle_install_web__plugin}" > ../"${_shundle_install_web__plugin}" &&
                 printf "%s\\n" "# Author:       unknown"        >> ../"${_shundle_install_web__plugin}" &&
@@ -317,7 +326,6 @@ _shundle_install()
     printf "\\n"
 
     #TODO 02-10-2013 05:12 >> activate newly added bundles?
-    #TODO 02-10-2013 05:12 >> allow specify version?
 }
 
 _shundle_remove()
@@ -394,15 +402,17 @@ _shundle_list()
     done
 }
 
-_wget="$(command -v "wget")"
-[ -z "${_wget}" ] && _wget="$(command -v "curl") -O"
-[ -z "${_wget}" ] && _wget="$(command -v "fetch")"
+WGET="$(command -v "wget")"
+[ -z "${WGET}" ] && WGET="$(command -v "curl") -O"
+[ -z "${WGET}" ] && WGET="$(command -v "fetch")"
 
 if ! _whereis git >/dev/null; then
     _die "shundle: git not found!"
-elif [ -z "${_wget}" ]; then
+elif [ -z "${WGET}" ]; then
     _die "shundle: wget|curl|fetch not found!"
 fi
+
+GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
 
 if [ "${#}" -lt 1 ]; then
     _usage
