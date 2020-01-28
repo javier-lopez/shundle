@@ -139,9 +139,9 @@ _shundle_install()
         _shundle_install_github__revision=":${1##*:}"
         _shundle_install_github__bundle="${1%$_shundle_install_github__revision}"
 
-        if [ "${GIT_VERSION}" -lt "230" ]; then #non interactive git
+        #if [ "${GIT_VERSION}" -lt "230" ]; then #non interactive git
             _shundle_install_github__credentials="git::@"
-        fi
+        #fi
 
         _shundle_install_github__author="${_shundle_install_github__bundle%/*}"
         _shundle_install_github__rep="${_shundle_install_github__bundle#*/}"
@@ -412,7 +412,25 @@ elif [ -z "${WGET}" ]; then
     _die "shundle: wget|curl|fetch not found!"
 fi
 
-GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+  GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # Mac OSX
+  # GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+  GIT_VERSION="$(git --version | awk '{gsub(".", "");print $NF;exit;}')"
+  # GIT_VERSION="$(git --version | awk -F' ' '{print $3;  gsub(/./, "", $3); }')
+  printf "Hello OSX"
+elif [[ "$OSTYPE" == "freebsd"* ]]; then
+        # ...
+  printf "freebsd type"
+else
+        # Unknown.
+  printf "else statement"
+fi
+
+# GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+# GIT_VERSION="$(git --version | awk -F' ' '{print $3;  gsub(/./, "", $3); }'
+
 
 if [ "${#}" -lt 1 ]; then
     _usage
