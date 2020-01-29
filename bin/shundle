@@ -139,9 +139,9 @@ _shundle_install()
         _shundle_install_github__revision=":${1##*:}"
         _shundle_install_github__bundle="${1%$_shundle_install_github__revision}"
 
-        if [ "${GIT_VERSION}" -lt "230" ]; then #non interactive git
+        #if [ "${GIT_VERSION}" -lt "230" ]; then #non interactive git
             _shundle_install_github__credentials="git::@"
-        fi
+        #fi
 
         _shundle_install_github__author="${_shundle_install_github__bundle%/*}"
         _shundle_install_github__rep="${_shundle_install_github__bundle#*/}"
@@ -275,7 +275,7 @@ _shundle_install()
         _shundle_install_local__plugin="${_shundle_install_local__plugin%.*}"
 
         case "${1}" in
-            \$*)   _shundle_install_local__orig="$(eval "printf "%s" "${1}"")" ;;
+            \$*)   _shundle_install_local__orig="$(eval "printf "%s" ""${1}""")" ;;
             '~'/*) _shundle_install_local__orig="${HOME}/${1#\~/}" ;;
             *)     _shundle_install_local__orig="/${1}" ;;
         esac
@@ -316,7 +316,7 @@ _shundle_install()
             _shundle_install__element="${_shundle_install__array%%,*}"
             _shundle_install_aux "${_shundle_install__element}"
             [ X"${_shundle_install__array}" = X"${_shundle_install__element}" ] &&\
-                ${_shundle_install__array}='' || _shundle_install__array="${_shundle_install__array#*,}"
+                "${_shundle_install__array}"='' || _shundle_install__array="${_shundle_install__array#*,}"
         done
     else
         for _shundle_install_param; do
@@ -359,7 +359,7 @@ _shundle_clean()
         _shundle_clean__element="${_shundle_clean__element##*/}"
         _shundle_clean__array="${_shundle_clean__array}${_shundle_clean__element%.*},"
         [ X"${_shundle_clean__array_tmp}" = X"${_shundle_clean__element}" ] &&\
-            ${_shundle_clean__array_tmp}='' || _shundle_clean__array_tmp="${_shundle_clean__array_tmp#*,}"
+            "${_shundle_clean__array_tmp}"='' || _shundle_clean__array_tmp="${_shundle_clean__array_tmp#*,}"
     done
 
     for plugin in "${SHUNDLE_HOME}"/bundle/*; do
@@ -381,7 +381,7 @@ _shundle_list()
 
     for _shundle_list__plugin in "${SHUNDLE_HOME}"/bundle/*; do
         _shundle_list__bplugin="${_shundle_list__plugin##*/}"
-        if _shundle_aux_loaded ${SHUNDLE_PLUGINS} ${_shundle_list__bplugin}; then
+        if _shundle_aux_loaded "${SHUNDLE_PLUGINS}" "${_shundle_list__bplugin}"; then
             printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" "${_shundle_list__bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         else
             printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_YELLOW}" "${_shundle_list__bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
@@ -412,7 +412,14 @@ elif [ -z "${WGET}" ]; then
     _die "shundle: wget|curl|fetch not found!"
 fi
 
-GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+if [ "$OSTYPE" == "linux-gnu" ]; then
+  GIT_VERSION="$(git --version | awk '{gsub("\\.", "");print $NF;exit;}')"
+elif [ "$OSTYPE" == "darwin" ]; then
+  GIT_VERSION="$(git --version | awk '{gsub(".", "");print $NF;exit;}')"
+else
+  true;
+fi
+
 
 if [ "${#}" -lt 1 ]; then
     _usage
@@ -430,3 +437,4 @@ else
 fi
 
 # vim: set ts=8 sw=4 tw=0 ft=sh :
+
