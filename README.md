@@ -33,6 +33,10 @@
        Bundle='https://github.com/javier-lopez/shundle-plugins/aliazator.git'
            ALIAZATOR_PLUGINS="installed"
 
+       #run once, after the bundle is cloned or updated
+       Bundle='gh:javier-lopez/shundle-plugins/eternalize'
+           PostInstall='wget -qO- https://example.com/tool.tar.gz | tar xz -C ~/.local/bin tool && chmod +x ~/.local/bin/tool'
+
        #from non GitHub
        #Bundle='git://git.domain.com/rep.git'
 

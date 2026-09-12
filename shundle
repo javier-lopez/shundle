@@ -19,7 +19,10 @@ if [ -z "${SHUNDLE_RC}" ]; then
 fi
 
 #ensure we've OPTIONS="option" before starting
-_shundle__options="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#" && $1!~"^[ \t]*alias[ \t]*") print}' "${SHUNDLE_RC}")"
+#PostInstall lines are data for 'shundle install'. The shell already runs them
+#as plain assignments when it reads the rc file, so evaluating them again here
+#would be a second evaluation of the same line
+_shundle__options="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#" && $1!~"^[ \t]*alias[ \t]*" && $0!~"[pP]ost[iI]nstall=") print}' "${SHUNDLE_RC}")"
 for _shundle__bundle in $(printf "%s" "${_shundle__options}"|\
 awk '{if($0~"([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])="){sub(/([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
     _shundle__bundle_raw="${_shundle__bundle##*/}"    #basename
