@@ -35,7 +35,7 @@
 
        #run once, after the bundle is cloned or updated
        Bundle='gh:javier-lopez/shundle-plugins/eternalize'
-           PostInstall='wget -qO- https://example.com/tool.tar.gz | tar xz -C ~/.local/bin tool && chmod +x ~/.local/bin/tool'
+           PostInstall='wget -qO- https://github.com/junegunn/fzf/releases/download/v0.74.4/fzf-0.74.4-linux_amd64.tar.gz | tar xz -C ~/.local/bin fzf && chmod +x ~/.local/bin/fzf'
 
        #from non GitHub
        #Bundle='git://git.domain.com/rep.git'
