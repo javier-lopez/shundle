@@ -27,10 +27,25 @@ fi
 #so they would be evaluated on every single shell you open
 _shundle__options="$(awk '/bundle\/shundle/,0 {
     if (skip != "") { if (sub(skip "[ \t]*(#.*)?$", "", $0)) skip = ""; next }
+    #which bundle the lines below belong to. Not for the value, for the name:
+    #a commented one owns nothing
+    if ($0 ~ "([bB]undle|[pP]lugin)=" && $0 !~ "^[ \t]*#") {
+        cur = $0; sub(/^[^=]*=/, "", cur); gsub(/["\047]/, "", cur)
+        sub(/[ \t].*$/, "", cur); sub(/.*\//, "", cur)
+        sub(/:.*$/, "", cur); sub(/\.git$/, "", cur)
+    }
     #Expose is data for the installer too: it names the paths in a bundle that
     #are commands, and the links it makes were made once, at install time.
-    #Evaluating it here would only leave the last one of them in your shell
-    if ($0 ~ "[eE]xpose=") { next }
+    #Evaluating it here would only leave the last one of them in your shell.
+    #The one thing worth keeping is that this bundle HAS one: that is what
+    #tells a repository of commands apart from a plugin that never arrived
+    if ($0 ~ "[eE]xpose=") {
+        if (cur != "" && !(cur in seen)) {
+            seen[cur] = 1
+            print "SHUNDLE_EXPOSED=\"${SHUNDLE_EXPOSED} " cur "\""
+        }
+        next
+    }
     if ($0 ~ "[pP]ost[iI]nstall=") {
         v = $0; sub(/^[^=]*=[ \t]*/, "", v); q = substr(v, 1, 1)
         if (q == "\047" || q == "\"") {
@@ -146,11 +161,18 @@ _shundle_init()
         [ -f "${plugin}/${_shundle_init__bplugin}/${_shundle_init__bplugin}" ] && \
             _shundle_init__bplugin="${_shundle_init__bplugin}/${_shundle_init__bplugin}"
 
-        #a bundle with no file to source is not a plugin at all: it is a
-        #repository of commands, and Expose already put those on your PATH when
-        #it was installed. There is nothing to read here, and reading it anyway
-        #is an awk error on every shell you open
-        [ -f "${plugin}/${_shundle_init__bplugin}" ] || continue
+        if [ ! -f "${plugin}/${_shundle_init__bplugin}" ]; then
+            #a bundle that declares Expose has nothing to source by design: it
+            #is a repository of commands, and Expose put those on your PATH
+            #when it was installed. One that declares nothing and still has no
+            #file to read is a plugin that did not arrive - and staying quiet
+            #about that is how a broken install survives for months
+            case " ${SHUNDLE_EXPOSED} " in
+                *" ${plugin##*/} "*) ;;
+                *) printf "%s\\n" "shundle: '${plugin##*/}' has nothing to source, reinstall it or give it an Expose line" >&2 ;;
+            esac
+            continue
+        fi
 
         #_shundle_init__dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init__bplugin" | cut -d: -f2 | tr -d " \t\n\r")
         #faster
@@ -179,6 +201,7 @@ export SHUNDLE_ENV_VERBOSE
 export SHUNDLE_ENV_DEBUG
 export SHUNDLE_ENV_COLOR
 export SHUNDLE_PLUGINS
+export SHUNDLE_EXPOSED
 export SHUNDLE_HOME
 export SHUNDLE_BIN
 export SHUNDLE_RC
