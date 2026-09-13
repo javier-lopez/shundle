@@ -31,7 +31,7 @@ _usage()
     printf "%s\\n" "  install [plugin]  install new plugin"
     printf "%s\\n" "  remove  [plugin]  delete plugin"
     printf "%s\\n" "  search  [pattern] look up at github available scripts by name"
-    printf "%s\\n" "  update            update configured plugins"
+    printf "%s\\n" "  update  [name]    update everything, one bundle, or one exposed command"
     printf "%s\\n" "  clean             clean up unused scripts"
     printf "%s\\n" "  list              list available plugins"
     return 1
@@ -270,6 +270,46 @@ _shundle_expose_report()
     [ -n "${_SHUNDLE_EXPOSE_MISSING}" ] && {
         printf "\\n [!] Expose names a path the bundle does not have:"
         printf "%s" "${_SHUNDLE_EXPOSE_MISSING}"; }
+    return 0
+}
+
+_shundle_update_command()
+{   #bring one exposed command forward without moving the rest of its checkout.
+    #Only for what Expose linked: those are loose scripts that do not read each
+    #other, so one of them being newer than its neighbours means nothing. In a
+    #plugin, where the files do read each other, it would mean plenty
+    [ -z "${1}" ] && return 1
+    _shundle_update_command__link="${SHUNDLE_BIN}/${1}"
+
+    if [ ! -L "${_shundle_update_command__link}" ]; then
+        printf "\\n%s\\n" "shundle: '${1}' is not a bundle, and ${SHUNDLE_BIN}/${1} is not a link to one" >&2
+        return 1
+    fi
+
+    _shundle_update_command__target="$(readlink "${_shundle_update_command__link}" 2>/dev/null)"
+    case "${_shundle_update_command__target}" in
+        "${SHUNDLE_HOME}/bundle/"*) ;;
+        *) printf "\\n%s\\n" "shundle: '${1}' points outside ${SHUNDLE_HOME}/bundle, not mine to update" >&2
+           return 1 ;;
+    esac
+
+    #the first path component after bundle/ is the bundle, the rest is the file
+    _shundle_update_command__rest="${_shundle_update_command__target#"${SHUNDLE_HOME}/bundle/"}"
+    _shundle_update_command__name="${_shundle_update_command__rest%%/*}"
+    _shundle_update_command__file="${_shundle_update_command__rest#*/}"
+    _shundle_update_command__dir="${SHUNDLE_HOME}/bundle/${_shundle_update_command__name}"
+
+    printf "\\n [+] Command '%s' from bundle '%s' " "${1}" "${_shundle_update_command__name}"
+    #FETCH_HEAD and not a tracking branch: these clones are shallow, and it is
+    #the one ref a plain fetch is guaranteed to leave behind
+    _shundle_install__error="$(cd "${_shundle_update_command__dir}" &&
+        git fetch -q origin 2>&1 >/dev/null &&
+        git checkout FETCH_HEAD -- "${_shundle_update_command__file}" 2>&1 >/dev/null)" || {
+        printf "    %s" "failed"; printf "\\n%s\\n" "${_shundle_install__error}" >&2; return 1; }
+
+    #the file now sits ahead of HEAD and git will say so until a full update
+    #fast forwards the rest onto it, at which point the difference disappears
+    printf "\\n [*] %s\\n" "${_shundle_update_command__file} is at the latest, run 'shundle update' to bring the rest"
     return 0
 }
 
@@ -596,16 +636,37 @@ _shundle_install()
         fi
     }
 
-    if [ -z "${1}" ]; then
+    #an argument to update is a name, not a bundle to go and fetch: it picks
+    #from what the rc file already declares. 'shundle install foo' still means
+    #install this thing I am naming, which is a different question
+    if [ -z "${1}" ] || [ -n "${_shundle_install__update}" ]; then
+        _shundle_install__filter="${1}"
         _shundle_aux_options #read Bundle definitions from SHUNDLE_RC and save them to SHUNDLE_OPTIONS
         _shundle_install__array="${SHUNDLE_OPTIONS}"
+        _shundle_install__hit=""
 
         while [ "${_shundle_install__array}" ]; do
             _shundle_install__element="${_shundle_install__array%%,*}"
-            _shundle_install_aux "${_shundle_install__element}"
+            #advance first: a filtered iteration that skips before advancing
+            #never reaches the end of the list
             [ X"${_shundle_install__array}" = X"${_shundle_install__element}" ] &&\
-                ${_shundle_install__array}='' || _shundle_install__array="${_shundle_install__array#*,}"
+                _shundle_install__array='' || _shundle_install__array="${_shundle_install__array#*,}"
+            [ -z "${_shundle_install__element}" ] && continue
+
+            if [ -n "${_shundle_install__filter}" ]; then
+                [ X"$(_shundle_install_name "${_shundle_install__element}")" \
+                    = X"${_shundle_install__filter}" ] || continue
+            fi
+            _shundle_install__hit="1"
+            _shundle_install_aux "${_shundle_install__element}"
         done
+
+        if [ -n "${_shundle_install__filter}" ] && [ -z "${_shundle_install__hit}" ]; then
+            #not a bundle. It may still be a command one of them exposed, and
+            #that is the finest grain there is: one file, brought forward on
+            #its own while the rest of the checkout stays where it was
+            _shundle_update_command "${_shundle_install__filter}" || return 1
+        fi
     else
         for _shundle_install_param; do
             _shundle_install_aux "${_shundle_install_param}"
@@ -635,8 +696,9 @@ _shundle_search()
 }
 
 _shundle_update()
-{
-    _shundle_install update
+{   #no argument is everything, a bundle name is that bundle, and anything else
+    #is looked up as a command some bundle exposed
+    _shundle_install update "${@}"
 }
 
 _shundle_clean()
@@ -711,7 +773,7 @@ else
         i*) shift; _shundle_install "${@}";;
         r*) shift; _shundle_remove  "${@}";;
         s*) shift; _shundle_search  "${2}";;
-        u*) _shundle_update ;;
+        u*) shift; _shundle_update "${@}" ;;
         c*) _shundle_clean  ;;
         l*) _shundle_list   ;;
          *) _usage          ;;
