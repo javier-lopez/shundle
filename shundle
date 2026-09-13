@@ -146,6 +146,12 @@ _shundle_init()
         [ -f "${plugin}/${_shundle_init__bplugin}/${_shundle_init__bplugin}" ] && \
             _shundle_init__bplugin="${_shundle_init__bplugin}/${_shundle_init__bplugin}"
 
+        #a bundle with no file to source is not a plugin at all: it is a
+        #repository of commands, and Expose already put those on your PATH when
+        #it was installed. There is nothing to read here, and reading it anyway
+        #is an awk error on every shell you open
+        [ -f "${plugin}/${_shundle_init__bplugin}" ] || continue
+
         #_shundle_init__dplugin=$(sed "/[D|d]epends:/!d" "$plugin"/"$_shundle_init__bplugin" | cut -d: -f2 | tr -d " \t\n\r")
         #faster
         #_shundle_init__dplugin=$(awk 'BEGIN {FS=":"} { if ($0 ~ "[D|d]epends:") print $2}' "$plugin"/"$_shundle_init__bplugin" | tr -d " \t\n\r")
