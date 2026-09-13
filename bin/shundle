@@ -111,11 +111,22 @@ _shundle_install()
                 cur = $0; sub(/^[^=]*=/, "", cur); gsub(/["\047]/, "", cur)
                 sub(/[ \t].*$/, "", cur); next
             }
+            #a value that does not close on its own line keeps going: a command
+            #long enough to be worth a PostInstall is a command worth wrapping,
+            #and reading only the first line of it truncates it into nonsense
+            open != "" {
+                cmd = cmd "\n" $0
+                if (sub(open "[ \t]*(#.*)?$", "", cmd)) { print cmd; exit }
+                next
+            }
             /[pP]ost[iI]nstall=/ {
                 if (cur != want) next
-                cmd = $0; sub(/^[^=]*=/, "", cmd)
-                sub(/^[ \t]*["\047]/, "", cmd); sub(/["\047][ \t]*$/, "", cmd)
-                print cmd; exit
+                cmd = $0; sub(/^[^=]*=[ \t]*/, "", cmd)
+                open = substr(cmd, 1, 1)
+                if (open != "\047" && open != "\"") { print cmd; exit }
+                cmd = substr(cmd, 2)
+                if (sub(open "[ \t]*(#.*)?$", "", cmd)) { print cmd; exit }
+                next
             }' "${SHUNDLE_RC}")"
         [ -n "${_shundle_install_post__cmd}" ] || return 0
 

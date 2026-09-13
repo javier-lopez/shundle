@@ -19,10 +19,24 @@ if [ -z "${SHUNDLE_RC}" ]; then
 fi
 
 #ensure we've OPTIONS="option" before starting
-#PostInstall lines are data for 'shundle install'. The shell already runs them
-#as plain assignments when it reads the rc file, so evaluating them again here
-#would be a second evaluation of the same line
-_shundle__options="$(awk '/bundle\/shundle/,0 {if($0~"^.*=[^;&]*" && $1!~"^#" && $1!~"^[ \t]*alias[ \t]*" && $0!~"[pP]ost[iI]nstall=") print}' "${SHUNDLE_RC}")"
+#PostInstall is data for 'shundle install' and must not reach the eval below:
+#the shell already made the assignment when it read the rc file, and these
+#lines are a command, not a setting. Skipping only the line that carries the
+#keyword is not enough — a quoted value may run over several lines, and the
+#continuations look exactly like options ("tar xz --strip-components=1 ..."),
+#so they would be evaluated on every single shell you open
+_shundle__options="$(awk '/bundle\/shundle/,0 {
+    if (skip != "") { if (sub(skip "[ \t]*(#.*)?$", "", $0)) skip = ""; next }
+    if ($0 ~ "[pP]ost[iI]nstall=") {
+        v = $0; sub(/^[^=]*=[ \t]*/, "", v); q = substr(v, 1, 1)
+        if (q == "\047" || q == "\"") {
+            v = substr(v, 2)
+            if (!sub(q "[ \t]*(#.*)?$", "", v)) skip = q
+        }
+        next
+    }
+    if ($0 ~ "^.*=[^;&]*" && $1 !~ "^#" && $1 !~ "^[ \t]*alias[ \t]*") print
+}' "${SHUNDLE_RC}")"
 for _shundle__bundle in $(printf "%s" "${_shundle__options}"|\
 awk '{if($0~"([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])="){sub(/([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
     _shundle__bundle_raw="${_shundle__bundle##*/}"    #basename
