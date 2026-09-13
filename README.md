@@ -37,13 +37,13 @@
        Bundle='gh:javier-lopez/shundle-plugins/eternalize'
            PostInstall='wget -qO- https://github.com/junegunn/fzf/releases/download/v0.74.4/fzf-0.74.4-linux_amd64.tar.gz | tar xz -C ~/.local/bin fzf && chmod +x ~/.local/bin/fzf'
 
-       #a repository of commands instead of a plugin: Expose names the paths
-       #that hold them, and they get linked into ~/.bin (SHUNDLE_BIN)
+       #a repository of commands
        Bundle='gh:javier-lopez/learn'
-           Expose="sh/tools"                                  #the whole directory
-           Expose="perl: !simple-cat !simple-grep"             #all of it but those
-           Expose="python/tools: mailgun monkey_typewriter"    #only those
-           Expose="sh/tools/ports"                             #a single file
+           #SHUNDLE_BIN="${HOME}/.bin" #where Expose links their commands
+           Expose="sh/tools"                                 #the whole directory
+           Expose="perl: !simple-cat !simple-grep"           #all of it but those
+           Expose="python/tools: mailgun monkey_typewriter"  #only those
+           Expose="sh/tools/ports"                           #a single file
 
        #from non GitHub
        #Bundle='git://git.domain.com/rep.git'
@@ -58,7 +58,7 @@
    # Brief help
    # shundle list         - list installed bundles
    # shundle install      - install configured bundles
-   # shundle update       - everything, or one bundle, or one exposed command
+   # shundle update [bundle|script] - everything, or a piece
    # shundle search       - search for foo in github (experimental)
    # shundle clean        - confirm (or auto-approve) removal of unused bundles
    #
