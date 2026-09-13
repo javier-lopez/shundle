@@ -32,8 +32,8 @@ _usage()
     printf "%s\\n" "  remove  [plugin]  delete plugin"
     printf "%s\\n" "  search  [pattern] look up at github available scripts by name"
     printf "%s\\n" "  update  [name]    update everything, one bundle, or one exposed command"
-    printf "%s\\n" "  clean             clean up unused scripts"
-    printf "%s\\n" "  list              list available plugins"
+    printf "%s\\n" "  clean             drop bundles and links the rc file stopped asking for"
+    printf "%s\\n" "  list    [name]    list bundles, or one of them in full"
     return 1
 }
 
@@ -103,6 +103,15 @@ _shundle_aux_options()
 #
 #Those paths do three jobs, not one: they are what gets checked out, what gets
 #downloaded, and what gets linked into SHUNDLE_BIN.
+
+_shundle_install_name()
+{   #the directory a bundle lands in: its basename, without revision or .git.
+    #Out here and not inside install because clean asks the same question: what
+    #directory does this line of the rc file stand for
+    _shundle_install_name__n="${1##*/}"
+    _shundle_install_name__n="${_shundle_install_name__n%:*}"
+    printf "%s" "${_shundle_install_name__n%.*}"
+}
 
 _shundle_expose_spec()
 {   #the Expose lines that follow this Bundle in the rc file, one per line.
@@ -202,7 +211,7 @@ _shundle_expose_one()
     _shundle_expose_one__src="${1}/${_shundle_expose_one__path}"
 
     if [ -f "${_shundle_expose_one__src}" ]; then
-        _shundle_expose_ln "${_shundle_expose_one__src}"
+        "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__src}"
         return 0
     fi
     if [ ! -d "${_shundle_expose_one__src}" ]; then
@@ -223,7 +232,7 @@ _shundle_expose_one()
         for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
             case "${_shundle_expose_one__w}" in !*) continue ;; esac
             if [ -f "${_shundle_expose_one__src}/${_shundle_expose_one__w}" ]; then
-                _shundle_expose_ln "${_shundle_expose_one__src}/${_shundle_expose_one__w}"
+                "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__src}/${_shundle_expose_one__w}"
             else
                 _SHUNDLE_EXPOSE_MISSING="${_SHUNDLE_EXPOSE_MISSING} ${_shundle_expose_one__path}/${_shundle_expose_one__w}"
             fi
@@ -242,14 +251,84 @@ _shundle_expose_one()
             [ X"${_shundle_expose_one__w}" = X"!${_shundle_expose_one__n}" ] &&
                 _shundle_expose_one__skip="1"
         done
-        [ -n "${_shundle_expose_one__skip}" ] || _shundle_expose_ln "${_shundle_expose_one__f}"
+        [ -n "${_shundle_expose_one__skip}" ] ||
+            "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__f}"
+    done
+}
+
+_shundle_expose_want()
+{   #the dry run of _shundle_expose_ln: not a link, just where one would point.
+    #Same walk, same rules, same exclusions - clean must not reimplement what
+    #install decided, or the two drift and it deletes something in use
+    _SHUNDLE_EXPOSE_WANT="${_SHUNDLE_EXPOSE_WANT}${1}
+"
+}
+
+_shundle_expose_wanted()
+{   #every file the rc file currently asks for, one per line
+    _shundle_aux_options
+    _SHUNDLE_EXPOSE_WANT=""
+    _shundle_expose__do="_shundle_expose_want"
+
+    _shundle_expose_wanted__list="${SHUNDLE_OPTIONS}"
+    while [ -n "${_shundle_expose_wanted__list}" ]; do
+        _shundle_expose_wanted__b="${_shundle_expose_wanted__list%%,*}"
+        [ X"${_shundle_expose_wanted__list}" = X"${_shundle_expose_wanted__b}" ] &&
+            _shundle_expose_wanted__list="" ||
+            _shundle_expose_wanted__list="${_shundle_expose_wanted__list#*,}"
+        [ -z "${_shundle_expose_wanted__b}" ] && continue
+
+        _shundle_expose_wanted__spec="$(_shundle_expose_spec "${_shundle_expose_wanted__b}")"
+        [ -z "${_shundle_expose_wanted__spec}" ] && continue
+        _shundle_expose_link \
+            "${SHUNDLE_HOME}/bundle/$(_shundle_install_name "${_shundle_expose_wanted__b}")" \
+            "${_shundle_expose_wanted__spec}"
+    done
+
+    _shundle_expose__do=""
+    printf "%s" "${_SHUNDLE_EXPOSE_WANT}"
+}
+
+_shundle_expose_orphans()
+{   #links of ours that nothing asks for any more: the bundle left the rc file,
+    #or its Expose line stopped naming them. Only ours - a link in SHUNDLE_BIN
+    #that points somewhere else is somebody else's and none of our business
+    [ -d "${SHUNDLE_BIN}" ] || return 0
+    #an rc we could not read would make every link look unwanted, and that is
+    #a directory full of your commands. Say nothing rather than guess
+    [ -r "${SHUNDLE_RC}" ] || return 0
+    #read here and not from what the command substitution below leaves behind:
+    #that runs in a subshell, and nothing it learns comes back
+    _shundle_aux_options
+    [ -z "${SHUNDLE_OPTIONS}" ] && return 0
+    _shundle_expose_orphans__want="$(_shundle_expose_wanted)"
+
+    for _shundle_expose_orphans__f in "${SHUNDLE_BIN}"/*; do
+        [ -L "${_shundle_expose_orphans__f}" ] || continue
+        _shundle_expose_orphans__t="$(readlink "${_shundle_expose_orphans__f}" 2>/dev/null)"
+        case "${_shundle_expose_orphans__t}" in
+            "${SHUNDLE_HOME}/bundle/"*) ;;
+            *) continue ;;
+        esac
+        #newline on both sides, and the closing one put back by hand: command
+        #substitution eats the trailing newline, which would leave the last
+        #path in the list matching nothing and looking abandoned
+        case "
+${_shundle_expose_orphans__want}
+" in
+            *"
+${_shundle_expose_orphans__t}
+"*) continue ;;
+        esac
+        printf "%s\\n" "${_shundle_expose_orphans__f}"
     done
 }
 
 _shundle_expose_link()
 {   #$1 the bundle directory, $2 its whole Expose spec
     [ -z "${2}" ] && return 0
-    [ -d "${SHUNDLE_BIN}" ] || mkdir -p "${SHUNDLE_BIN}" 2>/dev/null || return 1
+    [ -n "${_shundle_expose__do}" ] || [ -d "${SHUNDLE_BIN}" ] ||
+        mkdir -p "${SHUNDLE_BIN}" 2>/dev/null || return 1
 
     #newline is the only separator here: an Expose line has spaces in it
     _shundle_expose_link__ifs="${IFS}"
@@ -335,13 +414,6 @@ _shundle_install()
         [ -z "${_shundle_install_header__init}" ] || return 0 #run only once
         printf "Installing bundles to %s" "${SHUNDLE_HOME}/bundle"
         _shundle_install_header__init="true"
-    }
-
-    _shundle_install_name()
-    {   #the directory a bundle lands in: its basename, without revision or .git
-        _shundle_install_name__n="${1##*/}"
-        _shundle_install_name__n="${_shundle_install_name__n%:*}"
-        printf "%s" "${_shundle_install_name__n%.*}"
     }
 
     _shundle_install_post()
@@ -731,6 +803,54 @@ _shundle_clean()
         _shundle_aux_loaded "${_shundle_clean__array}" "${_shundle_clean__bplugin}" && continue #delete only commented plugins
         _shundle_remove "${_shundle_clean__bplugin}"
     done
+
+    #and the other half of the same job: a command is removed from a bundle's
+    #Expose line and its link stays behind, answering to a name nothing backs
+    #any more. Bundles first, so the links into one just deleted are swept here
+    _shundle_expose_orphans | while IFS= read -r _shundle_clean__link; do
+        printf "%s\\n" "[-] unlinking ${_shundle_clean__link##*/}"
+        rm -f "${_shundle_clean__link}"
+    done
+}
+
+_shundle_list_links()
+{   #'path name' for every link of ours in SHUNDLE_BIN, the path relative to
+    #the bundle directory. Read once and kept: this is the only question here
+    #that costs a fork per answer, and the links are the truth - what the rc
+    #file asks for is a different question, and a clash or a file somebody
+    #edited by hand is exactly where the two part ways
+    [ -n "${_SHUNDLE_LIST_LINKS}" ] && return 0
+    [ -d "${SHUNDLE_BIN}" ] || return 0
+
+    for _shundle_list_links__f in "${SHUNDLE_BIN}"/*; do
+        [ -L "${_shundle_list_links__f}" ] || continue
+        _shundle_list_links__t="$(readlink "${_shundle_list_links__f}" 2>/dev/null)"
+        case "${_shundle_list_links__t}" in
+            "${SHUNDLE_HOME}/bundle/"*) ;;
+            *) continue ;;
+        esac
+        _SHUNDLE_LIST_LINKS="${_SHUNDLE_LIST_LINKS}${_shundle_list_links__t#"${SHUNDLE_HOME}/bundle/"} ${_shundle_list_links__f##*/}
+"
+    done
+}
+
+_shundle_list_note()
+{   #what you wrote about this bundle: the comment trailing its Bundle line.
+    #A repository of commands carries no header to read a description out of,
+    #and the rc file is where you already said what it is to you
+    [ -r "${SHUNDLE_RC}" ] || return 0
+    awk -v want="${1}" '
+    /^[ \t]*#/ { next }
+    /([bB]undle|[pP]lugin)=/ {
+        v = $0; sub(/^[^=]*=/, "", v); gsub(/["\047]/, "", v)
+        sub(/[ \t].*$/, "", v); sub(/.*\//, "", v)
+        sub(/:.*$/, "", v); sub(/\.git$/, "", v)
+        if (v != want) next
+        if (!match($0, /#/)) next
+        c = substr($0, RSTART + 1)
+        gsub(/^[ \t]+|[ \t]+$/, "", c)
+        if (c != "") { print c; exit }
+    }' "${SHUNDLE_RC}"
 }
 
 _shundle_list()
@@ -741,10 +861,58 @@ _shundle_list()
             "${_BIN_SHUNDLE_ENV_NORMAL}" "$(printf "%s" "${1}" |  cut -d" " -f2-)"
     }
 
+    _shundle_list_commands()
+    {   #$1 bundle, $2 non empty to print them all. Without it one line: this
+        #is a listing of bundles, and sixty names would bury the next one
+        _shundle_list_links
+        _shundle_list_commands__n="$(printf "%s" "${_SHUNDLE_LIST_LINKS}" |
+            awk -v b="${1}/" '{ if (index($1, b) == 1) print $2 }')"
+        [ -z "${_shundle_list_commands__n}" ] && return 0
+
+        _shundle_list_commands__c="$(printf "%s" "${_shundle_list_commands__n}" | wc -l |
+            awk '{print $1 + 1}')"
+        _shundle_list_commands__in="$(printf "%s" "${SHUNDLE_BIN}" |
+            awk -v h="${HOME}" '{sub("^" h, "~"); print}')"
+
+        #the way to see the rest, next to the count that says there is a rest.
+        #Not printed when you are already looking at all of them
+        _shundle_list_commands__more=""
+        [ -z "${2}" ] && [ "${_shundle_list_commands__c}" -gt "3" ] &&
+            _shundle_list_commands__more="   \$ shundle list ${1}"
+
+        _shundle_list_printf "Commands:     ${_shundle_list_commands__c} in ${_shundle_list_commands__in}${_shundle_list_commands__more}"
+
+        printf "%s" "${_shundle_list_commands__n}" |
+        awk -v all="${2}" -v w="$(( ${COLUMNS:-80} - 18 ))" '
+        { word[++n] = $1 }
+        END {
+            line = ""
+            #a taste, no more. Three names say what kind of things live in
+            #there; sixty say it no better and bury the bundle underneath
+            if (all == "") {
+                for (i = 1; i <= n && i <= 3; i++)
+                    line = (line == "" ? word[i] : line " " word[i])
+                if (n > 3) line = line " ..."
+                print "                " line
+                exit
+            }
+            for (i = 1; i <= n; i++) {
+                if (line != "" && length(line) + 1 + length(word[i]) > w) {
+                    print "                " line
+                    line = ""
+                }
+                line = (line == "" ? word[i] : line " " word[i])
+            }
+            if (line != "") print "                " line
+        }'
+    }
+
     #printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_BLUE}" "Plugins:" "${_BIN_SHUNDLE_ENV_NORMAL}"
 
     for _shundle_list__plugin in "${SHUNDLE_HOME}"/bundle/*; do
         _shundle_list__bplugin="${_shundle_list__plugin##*/}"
+        [ -n "${1}" ] && [ ! X"${1}" = X"${_shundle_list__bplugin}" ] && continue
+        _shundle_list__name="${_shundle_list__bplugin}"
         if _shundle_aux_loaded ${SHUNDLE_PLUGINS} ${_shundle_list__bplugin}; then
             printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" "${_shundle_list__bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         else
@@ -762,6 +930,21 @@ _shundle_list()
             [ -n "${_shundle_list__home}" ] && _shundle_list_printf "${_shundle_list__home}"
             _shundle_list__support="$(head "${_shundle_list__plugin}/${_shundle_list__bplugin}" | sed '/[S|s]hell:/!d' | cut -d" " -f2-)"
             [ -n "${_shundle_list__support}" ] && _shundle_list_printf "${_shundle_list__support}"
+        else
+            #no file to source means no header to read, and until now that left
+            #the name standing on its own. A repository of commands answers the
+            #same three questions, it just keeps the answers somewhere else:
+            #in your rc file, in git, and in the links it put on your PATH
+            _shundle_list__description="$(_shundle_list_note "${_shundle_list__name}")"
+            [ -n "${_shundle_list__description}" ] &&
+                _shundle_list_printf "Description:  ${_shundle_list__description}"
+
+            _shundle_list__home="$(cd "${_shundle_list__plugin}" 2>/dev/null &&
+                git config remote.origin.url 2>/dev/null)"
+            [ -n "${_shundle_list__home}" ] &&
+                _shundle_list_printf "Source:       ${_shundle_list__home}"
+
+            _shundle_list_commands "${_shundle_list__name}" "${1}"
         fi
     done
 }
@@ -788,7 +971,7 @@ else
         s*) shift; _shundle_search  "${2}";;
         u*) shift; _shundle_update "${@}" ;;
         c*) _shundle_clean  ;;
-        l*) _shundle_list   ;;
+        l*) shift; _shundle_list "${1}" ;;
          *) _usage          ;;
     esac
 fi
