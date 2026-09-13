@@ -58,6 +58,10 @@ eval "${_shundle__options}"
 [ -z "${SHUNDLE_ENV_DEBUG}" ]   && SHUNDLE_ENV_DEBUG="0"
 [ -z "${SHUNDLE_ENV_COLOR}" ]   && SHUNDLE_ENV_COLOR="0"
 [ -z "${SHUNDLE_HOME}" ]        && SHUNDLE_HOME="${HOME}/.shundle"
+#where Expose links the commands a bundle carries. Set here so that the value
+#written in the rc file is the one 'shundle install' sees: it runs as its own
+#process, and what is not exported never reaches it
+[ -z "${SHUNDLE_BIN}" ]         && SHUNDLE_BIN="${HOME}/.bin"
 
 #===============================================================================
 #================================== Plugin =====================================
@@ -170,6 +174,7 @@ export SHUNDLE_ENV_DEBUG
 export SHUNDLE_ENV_COLOR
 export SHUNDLE_PLUGINS
 export SHUNDLE_HOME
+export SHUNDLE_BIN
 export SHUNDLE_RC
 
 _shundle_init
