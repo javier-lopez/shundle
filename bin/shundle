@@ -159,6 +159,15 @@ _shundle_expose_ln()
     _shundle_expose_ln__name="${1##*/}"
     _shundle_expose_ln__dst="${SHUNDLE_BIN}/${_shundle_expose_ln__name}"
 
+    if [ ! -x "${1}" ]; then
+        #a link carries no permissions of its own: PATH lookup follows it and
+        #asks the file at the end, so a file the repository committed without
+        #its execute bit would become a name your shell cannot run. Better an
+        #absent name than a dead one, and the report says which file to fix
+        _SHUNDLE_EXPOSE_NOEXEC="${_SHUNDLE_EXPOSE_NOEXEC} ${_shundle_expose_ln__name}"
+        return 0
+    fi
+
     if [ -e "${_shundle_expose_ln__dst}" ] && [ ! -L "${_shundle_expose_ln__dst}" ]; then
         #a real file: it may be a copy somebody edited and never versioned, and
         #no installer gets to delete that on a hunch
@@ -270,6 +279,10 @@ _shundle_expose_report()
     [ -n "${_SHUNDLE_EXPOSE_MISSING}" ] && {
         printf "\\n [!] Expose names a path the bundle does not have:"
         printf "%s" "${_SHUNDLE_EXPOSE_MISSING}"; }
+    [ -n "${_SHUNDLE_EXPOSE_NOEXEC}" ] && {
+        printf "\\n [!] not executable in the bundle, so not a command:"
+        printf "%s" "${_SHUNDLE_EXPOSE_NOEXEC}"
+        printf "\\n     chmod +x them where they live and run install again"; }
     return 0
 }
 
