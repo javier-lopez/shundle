@@ -7,6 +7,10 @@
 #required for clean|install at first deployment time
 [ -z "${SHUNDLE_HOME}" ] && SHUNDLE_HOME="${HOME}/.shundle"
 
+#where Expose puts its links. A directory already on your PATH, so that a
+#bundle full of commands costs a shell exactly nothing to start
+[ -z "${SHUNDLE_BIN}" ] && SHUNDLE_BIN="${HOME}/.bin"
+
 #non interactive git
 GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
 
@@ -77,6 +81,196 @@ _shundle_aux_options()
     awk '{if($0~"([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])="){sub(/([bB][uU][nN][dD][lL][eE]|[pP][lL][uU][gG][iI][nN])=/,"");gsub(/'\''/,"");gsub(/'\"'/,"");print $1}}'); do #'
         SHUNDLE_OPTIONS="${SHUNDLE_OPTIONS}${_shundle_aux_options__bundle},"
     done
+}
+
+#===============================================================================
+#=================================== Expose ====================================
+#===============================================================================
+#A bundle does not have to be a plugin. A repository of loose scripts is a
+#bundle too, and what it offers is commands, not something to source. Expose is
+#how such a bundle says which of its paths are commands:
+#
+#    Bundle="gh:javier-lopez/learn"
+#        Expose="sh/tools"                             the whole directory
+#        Expose="perl: !simple-cat !simple-grep"       all of it but those
+#        Expose="python/tools: mailgun monkey_typewriter"   only those
+#        Expose="sh/tools/ports"                       a single file
+#
+#The word before the colon is a path inside the repository; the words after are
+#names inside it. A name with '!' in front is dropped. If any name comes
+#without '!' the list is what to take; if every name has one, it is what to
+#leave out. The same idiom the dotfiles .gitignore uses.
+#
+#Those paths do three jobs, not one: they are what gets checked out, what gets
+#downloaded, and what gets linked into SHUNDLE_BIN.
+
+_shundle_expose_spec()
+{   #the Expose lines that follow this Bundle in the rc file, one per line.
+    #Unlike PostInstall these are single line values: a list has nothing to
+    #continue, and a bundle may carry as many of them as it needs
+    [ -z "${1}" ] && return 0
+    [ -r "${SHUNDLE_RC}" ] || return 0
+
+    awk -v want="${1}" '
+        /^[ \t]*#/ { next }
+        /([bB]undle|[pP]lugin)=/ {
+            cur = $0; sub(/^[^=]*=/, "", cur); gsub(/["\047]/, "", cur)
+            sub(/[ \t].*$/, "", cur); next
+        }
+        /[eE]xpose=/ {
+            if (cur != want) next
+            v = $0; sub(/^[^=]*=[ \t]*/, "", v)
+            q = substr(v, 1, 1)
+            if (q == "\047" || q == "\"") {
+                v = substr(v, 2); sub(q "[ \t]*(#.*)?$", "", v)
+            } else sub(/[ \t]*#.*$/, "", v)
+            if (v != "") print v
+        }' "${SHUNDLE_RC}"
+}
+
+_shundle_expose_paths()
+{   #what git is asked to check out, which is not quite what gets linked. A
+    #line that lists the names it wants has already said which files those are,
+    #so those are the paths git hears about - no reason to carry down the
+    #nineteen files in a directory to put two of them on your PATH. A line that
+    #only excludes cannot narrow anything, so the directory goes down whole and
+    #the exclusions are settled at link time
+    printf "%s\\n" "${1}" | awk '
+    {
+        i = index($0, ":")
+        if (i == 0) { p = $0; gsub(/^[ \t]+|[ \t]+$/, "", p); if (p != "") print p; next }
+
+        p = substr($0, 1, i - 1); gsub(/^[ \t]+|[ \t]+$/, "", p)
+        if (p == "") next
+        n = split(substr($0, i + 1), a, /[ \t]+/)
+
+        white = 0
+        for (j = 1; j <= n; j++)
+            if (a[j] != "" && substr(a[j], 1, 1) != "!") white++
+
+        if (white == 0) { print p; next }
+        for (j = 1; j <= n; j++)
+            if (a[j] != "" && substr(a[j], 1, 1) != "!") print p "/" a[j]
+    }'
+}
+
+_shundle_expose_ln()
+{   #one link in SHUNDLE_BIN, and the rules it will not break
+    _shundle_expose_ln__name="${1##*/}"
+    _shundle_expose_ln__dst="${SHUNDLE_BIN}/${_shundle_expose_ln__name}"
+
+    if [ -e "${_shundle_expose_ln__dst}" ] && [ ! -L "${_shundle_expose_ln__dst}" ]; then
+        #a real file: it may be a copy somebody edited and never versioned, and
+        #no installer gets to delete that on a hunch
+        _SHUNDLE_EXPOSE_KEPT="${_SHUNDLE_EXPOSE_KEPT} ${_shundle_expose_ln__name}"
+        return 0
+    fi
+
+    if [ -L "${_shundle_expose_ln__dst}" ]; then
+        _shundle_expose_ln__cur="$(readlink "${_shundle_expose_ln__dst}" 2>/dev/null)"
+        if [ ! X"${_shundle_expose_ln__cur}" = X"${1}" ] && [ -e "${_shundle_expose_ln__dst}" ]; then
+            #something already answers to this name and its file is still
+            #there. It need not be another bundle: one repository can carry the
+            #same basename in two languages. Last one wins is how a name
+            #silently changes meaning, so the first one keeps it
+            _SHUNDLE_EXPOSE_CLASH="${_SHUNDLE_EXPOSE_CLASH} ${_shundle_expose_ln__name}"
+            return 0
+        fi
+    fi
+
+    ln -sf "${1}" "${_shundle_expose_ln__dst}" 2>/dev/null &&
+        _SHUNDLE_EXPOSE_LINKED="${_SHUNDLE_EXPOSE_LINKED} ${_shundle_expose_ln__name}"
+}
+
+_shundle_expose_one()
+{   #$1 the bundle directory, $2 one Expose line
+    case "${2}" in
+        *:*) _shundle_expose_one__path="${2%%:*}"; _shundle_expose_one__sel="${2#*:}" ;;
+        *)   _shundle_expose_one__path="${2}";     _shundle_expose_one__sel=""        ;;
+    esac
+    _shundle_expose_one__path="$(printf "%s" "${_shundle_expose_one__path}" | awk '{$1=$1; print}')"
+    [ -z "${_shundle_expose_one__path}" ] && return 0
+    _shundle_expose_one__src="${1}/${_shundle_expose_one__path}"
+
+    if [ -f "${_shundle_expose_one__src}" ]; then
+        _shundle_expose_ln "${_shundle_expose_one__src}"
+        return 0
+    fi
+    if [ ! -d "${_shundle_expose_one__src}" ]; then
+        _SHUNDLE_EXPOSE_MISSING="${_SHUNDLE_EXPOSE_MISSING} ${_shundle_expose_one__path}"
+        return 1
+    fi
+
+    #one name without '!' turns the list into what to take
+    _shundle_expose_one__white=""
+    for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
+        case "${_shundle_expose_one__w}" in
+            !*) ;;
+             *) _shundle_expose_one__white="1" ;;
+        esac
+    done
+
+    if [ -n "${_shundle_expose_one__white}" ]; then
+        for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
+            case "${_shundle_expose_one__w}" in !*) continue ;; esac
+            if [ -f "${_shundle_expose_one__src}/${_shundle_expose_one__w}" ]; then
+                _shundle_expose_ln "${_shundle_expose_one__src}/${_shundle_expose_one__w}"
+            else
+                _SHUNDLE_EXPOSE_MISSING="${_SHUNDLE_EXPOSE_MISSING} ${_shundle_expose_one__path}/${_shundle_expose_one__w}"
+            fi
+        done
+        return 0
+    fi
+
+    for _shundle_expose_one__f in "${_shundle_expose_one__src}"/*; do
+        [ -f "${_shundle_expose_one__f}" ] || continue
+        _shundle_expose_one__n="${_shundle_expose_one__f##*/}"
+        #a dotfile is configuration and a .md is documentation; neither is a
+        #command, and linking them puts noise in your PATH
+        case "${_shundle_expose_one__n}" in .*|*.md) continue ;; esac
+        _shundle_expose_one__skip=""
+        for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
+            [ X"${_shundle_expose_one__w}" = X"!${_shundle_expose_one__n}" ] &&
+                _shundle_expose_one__skip="1"
+        done
+        [ -n "${_shundle_expose_one__skip}" ] || _shundle_expose_ln "${_shundle_expose_one__f}"
+    done
+}
+
+_shundle_expose_link()
+{   #$1 the bundle directory, $2 its whole Expose spec
+    [ -z "${2}" ] && return 0
+    [ -d "${SHUNDLE_BIN}" ] || mkdir -p "${SHUNDLE_BIN}" 2>/dev/null || return 1
+
+    #newline is the only separator here: an Expose line has spaces in it
+    _shundle_expose_link__ifs="${IFS}"
+    IFS="
+"
+    for _shundle_expose_link__line in ${2}; do
+        IFS="${_shundle_expose_link__ifs}"
+        _shundle_expose_one "${1}" "${_shundle_expose_link__line}"
+        IFS="
+"
+    done
+    IFS="${_shundle_expose_link__ifs}"
+}
+
+_shundle_expose_report()
+{
+    [ -n "${_SHUNDLE_EXPOSE_LINKED}" ] &&
+        printf "\\n [*] Expose linked %s command(s) into %s" \
+            "$(printf "%s" "${_SHUNDLE_EXPOSE_LINKED}" | wc -w)" "${SHUNDLE_BIN}"
+    [ -n "${_SHUNDLE_EXPOSE_KEPT}" ] && {
+        printf "\\n [!] left alone, a real file is already there:"
+        printf "%s" "${_SHUNDLE_EXPOSE_KEPT}"
+        printf "\\n     move or delete them and run install again to link these"; }
+    [ -n "${_SHUNDLE_EXPOSE_CLASH}" ] && {
+        printf "\\n [!] two paths want the same name, the first one kept it:"
+        printf "%s" "${_SHUNDLE_EXPOSE_CLASH}"; }
+    [ -n "${_SHUNDLE_EXPOSE_MISSING}" ] && {
+        printf "\\n [!] Expose names a path the bundle does not have:"
+        printf "%s" "${_SHUNDLE_EXPOSE_MISSING}"; }
+    return 0
 }
 
 _shundle_install()
@@ -151,6 +345,11 @@ _shundle_install()
             _shundle_install_aux__had=""
         fi
 
+        #read before the clone, because the paths it names are what the clone
+        #will ask git for. Kept in a variable the handlers can see: the rc knows
+        #this bundle by the string written in it, which is what we were given
+        _shundle_install__expose="$(_shundle_expose_spec "${1}")"
+
         _shundle_install__handler="${1%%:*}:"
         _shundle_install__bundle="${1#$_shundle_install__handler}"
 
@@ -191,6 +390,11 @@ _shundle_install()
         if [ -z "${_shundle_install_aux__had}" ] || [ -n "${_shundle_install__update}" ]; then
             _shundle_install_post "${1}" "${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}"
         fi
+
+        #the links go up every time, not only on a fresh clone: a bundle that
+        #gained a command should hand it to you without being reinstalled
+        _shundle_expose_link "${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}" \
+                             "${_shundle_install__expose}"
     }
 
     _shundle_install_github()
@@ -217,6 +421,29 @@ _shundle_install()
         _shundle_install_github__bundle="${_shundle_install_github__bundle##*/}"
         _shundle_install_github__bundle="${_shundle_install_github__bundle%.*}"
 
+        #what the sparse checkout will ask for. A bundle that names a plugin is
+        #a directory inside the repository; a bundle that Exposes paths says so
+        #itself, and its own name is not a directory in there at all - asking
+        #for it would check out nothing
+        if [ -n "${_shundle_install__expose}" ]; then
+            _shundle_install_github__sparse="$(_shundle_expose_paths "${_shundle_install__expose}")"
+            #blobs the checkout will never write are blobs not worth fetching.
+            #Needs git 2.19 on this side and a server that answers, which
+            #github does; anything older just carries the whole repository
+            if [ "${GIT_VERSION}" -ge "219" ]; then
+                _shundle_install_github__filter="--filter=blob:none"
+            else
+                _shundle_install_github__filter=""
+            fi
+            #and nothing is written before the narrowing is in place: a clone
+            #that checks out first fetches every blob on the way, which is
+            #exactly what the filter was there to avoid
+            _shundle_install_github__filter="${_shundle_install_github__filter} --no-checkout"
+        else
+            _shundle_install_github__sparse="${_shundle_install_github__bundle}"
+            _shundle_install_github__filter=""
+        fi
+
         if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" ] && [ -z "${_shundle_install__update}" ]; then
             #already installed and without a request for update
             return 0
@@ -224,14 +451,15 @@ _shundle_install()
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}/.git" ]; then
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
+                     printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
                      git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null)"
                 fi
             else
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle &&
-                    git clone -q --depth=1 "${_shundle_install__url}" "${_shundle_install_github__bundle}" 2>&1 >/dev/null &&
+                    git clone -q --depth=1 ${_shundle_install_github__filter} "${_shundle_install__url}" "${_shundle_install_github__bundle}" 2>&1 >/dev/null &&
                     cd "${_shundle_install_github__bundle}" && git config core.sparsecheckout true 2>&1 >/dev/null         &&
-                    printf "%s" "${_shundle_install_github__bundle}" > .git/info/sparse-checkout &&
+                    printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
                     git read-tree -m -u HEAD 2>&1 >/dev/null)"
                 else
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}"/bundle &&
@@ -239,7 +467,7 @@ _shundle_install()
                     cd "${_shundle_install_github__bundle}" &&
                     git checkout -q "${_shundle_install_github__revision#:}" 2>&1 >/dev/null &&
                     git config core.sparsecheckout true 2>&1 >/dev/null &&
-                    printf "%s" "${_shundle_install_github__bundle}" > .git/info/sparse-checkout &&
+                    printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
                     git read-tree -m -u HEAD 2>&1 >/dev/null)"
                 fi
             fi
@@ -383,6 +611,7 @@ _shundle_install()
             _shundle_install_aux "${_shundle_install_param}"
         done
     fi
+    _shundle_expose_report
     printf "\\n"
 
     #TODO 02-10-2013 05:12 >> activate newly added bundles?

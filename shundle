@@ -27,6 +27,10 @@ fi
 #so they would be evaluated on every single shell you open
 _shundle__options="$(awk '/bundle\/shundle/,0 {
     if (skip != "") { if (sub(skip "[ \t]*(#.*)?$", "", $0)) skip = ""; next }
+    #Expose is data for the installer too: it names the paths in a bundle that
+    #are commands, and the links it makes were made once, at install time.
+    #Evaluating it here would only leave the last one of them in your shell
+    if ($0 ~ "[eE]xpose=") { next }
     if ($0 ~ "[pP]ost[iI]nstall=") {
         v = $0; sub(/^[^=]*=[ \t]*/, "", v); q = substr(v, 1, 1)
         if (q == "\047" || q == "\"") {
