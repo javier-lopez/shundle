@@ -625,9 +625,19 @@ _shundle_install()
         else
             if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}/.git" ]; then
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
+                    #the spec is rewritten on every update, and rewriting it
+                    #is not applying it: a path added to an Expose line names
+                    #files git already has in the index and a pull leaves them
+                    #alone, marked skip-worktree, so the widening would only
+                    #ever happen on a machine that installed from nothing.
+                    #read-tree is what moves the spec into the working tree,
+                    #both ways - it takes down what was added and removes what
+                    #is no longer asked for. It refuses rather than clobber a
+                    #file somebody edited, and a bundle is not a place to edit
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
                      printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
-                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null)"
+                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null &&
+                     git read-tree -m -u HEAD 2>&1 >/dev/null)"
                 fi
             else
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
