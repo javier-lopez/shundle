@@ -38,7 +38,10 @@ esac
 if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ] || [ X"${SHUNDLE_ENV_COLOR}" = X"1F" ]; then
     _BIN_SHUNDLE_ENV_RED='\033[1;31m'
     _BIN_SHUNDLE_ENV_BLUE='\033[1;34m'
-    _BIN_SHUNDLE_ENV_GREEN='\033[32;02m'
+    #32;02 is green plus 'faint', which renders as a tired olive beside the
+    #other five. Dimming is DIM's job, on the things that deserve dimming, not
+    #baked into the colour used to say that something worked
+    _BIN_SHUNDLE_ENV_GREEN='\033[32m'
     _BIN_SHUNDLE_ENV_NORMAL='\033[1;00m'
     _BIN_SHUNDLE_ENV_YELLOW='\033[1;33m'
     _BIN_SHUNDLE_ENV_DIM='\033[2m'
@@ -700,17 +703,21 @@ _shundle_install()
             _SHUNDLE_MOVED="${_SHUNDLE_MOVED} ${_shundle_install_aux__name}"
         elif [ X"${_shundle_install_aux__was}" != X"${_shundle_install_aux__now}" ]; then
             _shundle_install_aux__n="$( cd "${_shundle_install_aux__dir}" 2>/dev/null &&
-                git rev-list --count "${_BIN_SHUNDLE_ENV_DIM}${_shundle_install_aux__was}..${_shundle_install_aux__now}${_BIN_SHUNDLE_ENV_NORMAL}" 2>/dev/null )"
+                git rev-list --count "${_shundle_install_aux__was}..${_shundle_install_aux__now}" 2>/dev/null )"
             case "${_shundle_install_aux__n}" in
                 1)  _shundle_install_aux__n="1 commit"  ;;
                 ''|0) _shundle_install_aux__n=""        ;;
                 *)  _shundle_install_aux__n="${_shundle_install_aux__n} commits" ;;
             esac
-            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__pad}${_shundle_install_aux__was}..${_shundle_install_aux__now}${_shundle_install_aux__n:+  ${_shundle_install_aux__n}}"
+            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__pad}${_BIN_SHUNDLE_ENV_DIM}${_shundle_install_aux__was}..${_shundle_install_aux__now}${_BIN_SHUNDLE_ENV_NORMAL}${_shundle_install_aux__n:+  ${_BIN_SHUNDLE_ENV_DIM}${_shundle_install_aux__n}${_BIN_SHUNDLE_ENV_NORMAL}}"
             _shundle_tree_flush
             _SHUNDLE_MOVED="${_SHUNDLE_MOVED} ${_shundle_install_aux__name}"
         else
-            _SHUNDLE_TREE_PENDING="  ${_SH_DOT} ${_shundle_install_aux__name}"
+            #green as well: the dot says this bundle is on screen because
+            #something happened to it, and a command of its own running is
+            #something happening. What separates the two is the revision range
+            #beside the name, which this one has nothing to put in
+            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__name}"
         fi
 
         #a PostInstall is the last branch unless this bundle also Exposes
