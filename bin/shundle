@@ -31,8 +31,8 @@ GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
 #everywhere - TERM=linux and a C locale both answer in ASCII - and a shape that
 #arrives as a question mark is worse than the plain one it replaced
 case "${LC_ALL:-${LC_CTYPE:-${LANG}}}" in
-    *[Uu][Tt][Ff]*) _SH_DOT="●"; _SH_RING="○"; _SH_TEE="├─"; _SH_ELL="└─"; _SH_BAR="│"; _SH_ARROW="→"; _SH_MID="·" ;;
-    *)              _SH_DOT="*"; _SH_RING="o"; _SH_TEE="|-"; _SH_ELL="\`-"; _SH_BAR="|"; _SH_ARROW="->"; _SH_MID="-" ;;
+    *[Uu][Tt][Ff]*) _SH_DOT="●"; _SH_RING="○"; _SH_TEE="├─"; _SH_ELL="└─"; _SH_BAR="│"; _SH_ARROW="→"; _SH_MID="·"; _SH_ELI="…" ;;
+    *)              _SH_DOT="*"; _SH_RING="o"; _SH_TEE="|-"; _SH_ELL="\`-"; _SH_BAR="|"; _SH_ARROW="->"; _SH_MID="-"; _SH_ELI="..." ;;
 esac
 
 if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ] || [ X"${SHUNDLE_ENV_COLOR}" = X"1F" ]; then
@@ -1243,15 +1243,23 @@ _shundle_list_note()
 
 _shundle_list()
 {
-    _shundle_list_printf()
-    {
-        printf "   %b%s%b%s\\n" "${_BIN_SHUNDLE_ENV_GREEN}" "$(printf "%s" "${1}" |  cut -d" " -f1)" \
-            "${_BIN_SHUNDLE_ENV_NORMAL}" "$(printf "%s" "${1}" |  cut -d" " -f2-)"
+    _shundle_list_cont()
+    {   #a line belonging to the bundle above it: the bar, the width of the
+        #name column, then the text, which arrives carrying its own colours
+        printf "  %b%s%b %s%b\n" "${_BIN_SHUNDLE_ENV_DIM}" "${_SH_BAR}" \
+            "${_BIN_SHUNDLE_ENV_NORMAL}" "${_shundle_list__gap}" "${1}"
+    }
+
+    _shundle_list_hdr()
+    {   #one '# Field: value' line out of a plugin's own header
+        [ -f "${1}" ] || return 0
+        head "${1}" | sed -e "/${2}:/!d" -e 's/^#[^:]*:[[:space:]]*//' | head -1
     }
 
     _shundle_list_commands()
-    {   #$1 bundle, $2 non empty to print them all. Without it one line: this
-        #is a listing of bundles, and sixty names would bury the next one
+    {   #$1 bundle, $2 non empty to print them all. Without it the count and
+        #a taste: this is a listing of bundles, and sixty command names would
+        #bury the one underneath
         _shundle_list_links
         _shundle_list_commands__n="$(printf "%s" "${_SHUNDLE_LIST_LINKS}" |
             awk -v b="${1}/" '{ if (index($1, b) == 1) print $2 }')"
@@ -1259,82 +1267,130 @@ _shundle_list()
 
         _shundle_list_commands__c="$(printf "%s" "${_shundle_list_commands__n}" | wc -l |
             awk '{print $1 + 1}')"
-        _shundle_list_commands__in="$(printf "%s" "${SHUNDLE_BIN}" |
-            awk -v h="${HOME}" '{sub("^" h, "~"); print}')"
+        _SHUNDLE_LIST_CMDS="$(( _SHUNDLE_LIST_CMDS + _shundle_list_commands__c ))"
+        _shundle_list_commands__in="$(_shundle_tilde "${SHUNDLE_BIN}")"
 
-        #the way to see the rest, next to the count that says there is a rest.
-        #Not printed when you are already looking at all of them
-        _shundle_list_commands__more=""
-        [ -z "${2}" ] && [ "${_shundle_list_commands__c}" -gt "3" ] &&
-            _shundle_list_commands__more="   \$ shundle list ${1}"
+        if [ -z "${2}" ]; then
+            _shundle_list_cont "${_BIN_SHUNDLE_ENV_DIM}${_shundle_list_commands__c} commands in ${_shundle_list_commands__in} ${_SH_MID} $(printf "%s" "${_shundle_list_commands__n}" |
+                awk -v e="${_SH_ELI}" 'NR<=3 { printf "%s%s", (NR>1 ? " " : ""), $1 }
+                                       END  { if (NR > 3) printf " %s", e }')${_BIN_SHUNDLE_ENV_NORMAL}"
+            return 0
+        fi
 
-        _shundle_list_printf "Commands:     ${_shundle_list_commands__c} in ${_shundle_list_commands__in}${_shundle_list_commands__more}"
-
+        #the whole list, asked for by name: the last branch of this bundle
+        printf "  %b%s%b %s commands in %s\n" "${_BIN_SHUNDLE_ENV_DIM}" "${_SH_ELL}" \
+            "${_BIN_SHUNDLE_ENV_NORMAL}" "${_shundle_list_commands__c}" "${_shundle_list_commands__in}"
         printf "%s" "${_shundle_list_commands__n}" |
-        awk -v all="${2}" -v w="$(( ${COLUMNS:-80} - 18 ))" '
+        awk -v w="$(( ${COLUMNS:-80} - 8 ))" '
         { word[++n] = $1 }
         END {
-            line = ""
-            #a taste, no more. Three names say what kind of things live in
-            #there; sixty say it no better and bury the bundle underneath
-            if (all == "") {
-                for (i = 1; i <= n && i <= 3; i++)
-                    line = (line == "" ? word[i] : line " " word[i])
-                if (n > 3) line = line " ..."
-                print "                " line
-                exit
-            }
             for (i = 1; i <= n; i++) {
                 if (line != "" && length(line) + 1 + length(word[i]) > w) {
-                    print "                " line
-                    line = ""
+                    print "       " line; line = ""
                 }
                 line = (line == "" ? word[i] : line " " word[i])
             }
-            if (line != "") print "                " line
+            if (line != "") print "       " line
         }'
     }
 
-    #printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_BLUE}" "Plugins:" "${_BIN_SHUNDLE_ENV_NORMAL}"
-
-    for _shundle_list__plugin in "${SHUNDLE_HOME}"/bundle/*; do
-        _shundle_list__bplugin="${_shundle_list__plugin##*/}"
-        [ -n "${1}" ] && [ ! X"${1}" = X"${_shundle_list__bplugin}" ] && continue
-        _shundle_list__name="${_shundle_list__bplugin}"
-        if _shundle_aux_loaded ${SHUNDLE_PLUGINS} ${_shundle_list__bplugin}; then
-            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_RED}" "${_shundle_list__bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
-        else
-            printf "%b%s%b\\n" "${_BIN_SHUNDLE_ENV_YELLOW}" "${_shundle_list__bplugin}" "${_BIN_SHUNDLE_ENV_NORMAL}"
-        fi
-
-        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_list__bplugin}/${_shundle_list__bplugin}" ]; then
-            _shundle_list__bplugin="${_shundle_list__bplugin}/${_shundle_list__bplugin}"
-        fi
-
-        if [ -f "${_shundle_list__plugin}/${_shundle_list__bplugin}" ]; then
-            _shundle_list__description="$(head "${_shundle_list__plugin}/${_shundle_list__bplugin}" | sed '/[D|d]escription:/!d' | cut -d" " -f2-)"
-            [ -n "${_shundle_list__description}" ] && _shundle_list_printf "${_shundle_list__description}"
-            _shundle_list__home="$(head "${_shundle_list__plugin}/${_shundle_list__bplugin}" | sed '/[S|s]ource:/!d' | cut -d" " -f2-)"
-            [ -n "${_shundle_list__home}" ] && _shundle_list_printf "${_shundle_list__home}"
-            _shundle_list__support="$(head "${_shundle_list__plugin}/${_shundle_list__bplugin}" | sed '/[S|s]hell:/!d' | cut -d" " -f2-)"
-            [ -n "${_shundle_list__support}" ] && _shundle_list_printf "${_shundle_list__support}"
-        else
-            #no file to source means no header to read, and until now that left
-            #the name standing on its own. A repository of commands answers the
-            #same three questions, it just keeps the answers somewhere else:
-            #in your rc file, in git, and in the links it put on your PATH
-            _shundle_list__description="$(_shundle_list_note "${_shundle_list__name}")"
-            [ -n "${_shundle_list__description}" ] &&
-                _shundle_list_printf "Description:  ${_shundle_list__description}"
-
-            _shundle_list__home="$(cd "${_shundle_list__plugin}" 2>/dev/null &&
-                git config remote.origin.url 2>/dev/null)"
-            [ -n "${_shundle_list__home}" ] &&
-                _shundle_list_printf "Source:       ${_shundle_list__home}"
-
-            _shundle_list_commands "${_shundle_list__name}" "${1}"
-        fi
+    #the name column is measured, not guessed: a fixed width either clips the
+    #longest bundle or leaves a stripe of blank down every row. A listing can
+    #afford the first pass, unlike the install tree, which has to print a
+    #bundle's line long before it knows the names of the ones after it
+    _shundle_list__w="0"
+    for _shundle_list__dir in "${SHUNDLE_HOME}"/bundle/*; do
+        [ -d "${_shundle_list__dir}" ] || continue
+        _shundle_list__name="${_shundle_list__dir##*/}"
+        [ -n "${1}" ] && [ ! X"${1}" = X"${_shundle_list__name}" ] && continue
+        [ "${#_shundle_list__name}" -gt "${_shundle_list__w}" ] &&
+            _shundle_list__w="${#_shundle_list__name}"
     done
+    if [ "${_shundle_list__w}" -eq "0" ]; then
+        [ -n "${1}" ] && printf "  %b!%b no bundle called %s in %s\n" \
+            "${_BIN_SHUNDLE_ENV_YELLOW}" "${_BIN_SHUNDLE_ENV_NORMAL}" "${1}" \
+            "$(_shundle_tilde "${SHUNDLE_HOME}/bundle")" >&2
+        return 1
+    fi
+    _shundle_list__w="$(( _shundle_list__w + 2 ))"
+    _shundle_list__gap="$(printf "%${_shundle_list__w}s" "")"
+
+    #the header 'install' and 'update' print, so the three name themselves the
+    #same way and a transcript says which one you were looking at
+    printf "%bshundle list%b %s %s\n\n" "${_BIN_SHUNDLE_ENV_BLUE}" \
+        "${_BIN_SHUNDLE_ENV_NORMAL}" "${_SH_ARROW}" \
+        "$(_shundle_tilde "${SHUNDLE_HOME}/bundle")"
+
+    #which bundles the rc file actually asks for, read the way 'clean' reads
+    #it. SHUNDLE_PLUGINS would have done for a shell that sourced shundle, and
+    #said nothing at all for one that did not - the rc file is here either way
+    _shundle_aux_options
+    _shundle_list__declared=""
+    _shundle_list__opts="${SHUNDLE_OPTIONS}"
+    while [ "${_shundle_list__opts}" ]; do
+        _shundle_list__e="${_shundle_list__opts%%,*}"
+        _shundle_list__e="${_shundle_list__e##*/}"
+        _shundle_list__declared="${_shundle_list__declared}${_shundle_list__e%.*},"
+        [ X"${_shundle_list__opts}" = X"${_shundle_list__e}" ] &&
+            _shundle_list__opts="" || _shundle_list__opts="${_shundle_list__opts#*,}"
+    done
+
+    _SHUNDLE_LIST_CMDS="0"
+    _shundle_list__count="0"
+    for _shundle_list__dir in "${SHUNDLE_HOME}"/bundle/*; do
+        [ -d "${_shundle_list__dir}" ] || continue
+        _shundle_list__name="${_shundle_list__dir##*/}"
+        [ -n "${1}" ] && [ ! X"${1}" = X"${_shundle_list__name}" ] && continue
+        _shundle_list__count="$(( _shundle_list__count + 1 ))"
+
+        #a filled dot for a bundle this shell actually loaded, a ring for one
+        #that is on disk without a Bundle line behind it - the same pair the
+        #install tree and 'clean' use, saying the same thing
+        if _shundle_aux_loaded "${_shundle_list__declared}" "${_shundle_list__name}"; then
+            _shundle_list__glyph="${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL}"
+        else
+            _shundle_list__glyph="${_BIN_SHUNDLE_ENV_DIM}${_SH_RING}${_BIN_SHUNDLE_ENV_NORMAL}"
+        fi
+
+        _shundle_list__file="${_shundle_list__dir}/${_shundle_list__name}"
+        [ -f "${_shundle_list__dir}/${_shundle_list__name}/${_shundle_list__name}" ] &&
+            _shundle_list__file="${_shundle_list__dir}/${_shundle_list__name}/${_shundle_list__name}"
+
+        #a plugin says what it is in its own header. A repository of commands
+        #has none, and answers the same question from the rc file, from git,
+        #and from the links it put on your PATH
+        _shundle_list__desc="$(_shundle_list_hdr "${_shundle_list__file}" '[Dd]escription')"
+        [ -n "${_shundle_list__desc}" ] ||
+            _shundle_list__desc="$(_shundle_list_note "${_shundle_list__name}")"
+        _shundle_list__src="$(_shundle_list_hdr "${_shundle_list__file}" '[Ss]ource')"
+        [ -n "${_shundle_list__src}" ] ||
+            _shundle_list__src="$(cd "${_shundle_list__dir}" 2>/dev/null &&
+                git config remote.origin.url 2>/dev/null)"
+        _shundle_list__shell="$(_shundle_list_hdr "${_shundle_list__file}" '[Ss]hell')"
+
+        printf "  %b %s%s\n" "${_shundle_list__glyph}" \
+            "$(printf "%-${_shundle_list__w}s" "${_shundle_list__name}")" \
+            "${_shundle_list__desc}"
+
+        #the shell it is written for gets a colour of its own: next to a dim
+        #url a second dim field reads as more url. The separator belongs to
+        #the pair, so a bundle missing either half does not trail a lone dot
+        _shundle_list__tail="${_shundle_list__shell:+${_BIN_SHUNDLE_ENV_BLUE}${_shundle_list__shell}${_BIN_SHUNDLE_ENV_NORMAL}}"
+        if [ -n "${_shundle_list__src}" ]; then
+            _shundle_list__src="$(printf "%s" "${_shundle_list__src}" |
+                sed -e 's|^[a-z]*://||' -e 's|\.git$||' -e 's|/$||')"
+            _shundle_list__tail="${_shundle_list__tail}${_shundle_list__tail:+${_BIN_SHUNDLE_ENV_DIM} ${_SH_MID}${_BIN_SHUNDLE_ENV_NORMAL} }${_BIN_SHUNDLE_ENV_DIM}${_shundle_list__src}${_BIN_SHUNDLE_ENV_NORMAL}"
+        fi
+        [ -n "${_shundle_list__tail}" ] && _shundle_list_cont "${_shundle_list__tail}"
+
+        _shundle_list_commands "${_shundle_list__name}" "${1}"
+    done
+
+    printf "\n  %b%s bundle%s" "${_BIN_SHUNDLE_ENV_DIM}" "${_shundle_list__count}" \
+        "$([ "${_shundle_list__count}" -eq "1" ] || printf "s")"
+    [ "${_SHUNDLE_LIST_CMDS}" -gt "0" ] && printf " %s %s commands in %s" "${_SH_MID}" \
+        "${_SHUNDLE_LIST_CMDS}" "$(_shundle_tilde "${SHUNDLE_BIN}")"
+    printf "%b\n" "${_BIN_SHUNDLE_ENV_NORMAL}"
 }
 
 WGET="$(command -v "wget")"
