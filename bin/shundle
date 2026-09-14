@@ -763,11 +763,33 @@ _shundle_install()
     #TODO 02-10-2013 05:12 >> activate newly added bundles?
 }
 
+_shundle_remove_hook()
+{   #a bundle that changed something outside its own directory - a line in the
+    #crontab, a file in ~/.local, a service - is the only thing that knows how
+    #to undo it, and the rc file cannot be asked: 'clean' removes the bundles
+    #the rc file no longer names, so by the time the question comes up the line
+    #that would have answered it is the line that was deleted. The bundle is
+    #still on disk right up to the rm, so the answer lives there instead, in a
+    #.shundle-remove at its root. It is run, never sourced, from the same
+    #directory a PostInstall would run in, and a failure is reported and
+    #ignored: nothing a bundle says on its way out may keep it from going
+    [ -n "${1}" ] || return 0
+    _shundle_remove_hook__dir="${1}"
+    [ -d "${1}/${1##*/}" ] && [ -f "${1}/${1##*/}/.shundle-remove" ] && \
+        _shundle_remove_hook__dir="${1}/${1##*/}"
+    [ -f "${_shundle_remove_hook__dir}/.shundle-remove" ] || return 0
+
+    printf "%s\\n" "[*] PreRemove ${_shundle_remove_hook__dir##*/}/.shundle-remove"
+    ( cd "${_shundle_remove_hook__dir}" || exit 1
+      sh .shundle-remove ) || printf "%s\\n" "    failed"
+}
+
 _shundle_remove()
 {
     for _shundle_remove_param; do
         [ X"${_shundle_remove_param}" = X"shundle" ] && _die "shundle: cannot remove myself!"
         if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}" ]; then
+            _shundle_remove_hook "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
             printf "%s\\n" "[-] removing ${_shundle_remove_param}"
             rm -rf "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
         fi
