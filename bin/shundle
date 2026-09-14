@@ -48,7 +48,7 @@ _usage()
 {
     printf "%s\\n" "Usage: shundle [-c] OPTION [ARGS]"
     printf "\\n"
-    printf "%s\\n" "  -c                colorize output"
+    printf "%s\\n" "  -c                colorize output even when it is not a tty"
     printf "\\n"
     printf "%s\\n" "  install [plugin]  install new plugin"
     printf "%s\\n" "  remove  [plugin]  delete plugin"
