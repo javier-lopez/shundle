@@ -55,7 +55,6 @@ _usage()
     printf "\\n"
     printf "%s\\n" "  install [plugin]  install new plugin"
     printf "%s\\n" "  remove  [plugin]  delete plugin"
-    printf "%s\\n" "  search  [pattern] look up at github available scripts by name"
     printf "%s\\n" "  update  [name]    update everything, one bundle, or one exposed command"
     printf "%s\\n" "  clean             drop bundles and links the rc file stopped asking for"
     printf "%s\\n" "  list    [name]    list bundles, or one of them in full"
@@ -1037,22 +1036,73 @@ _shundle_install()
 #sentence is worse than no rule. Until one of the two is chosen outright, what
 #a bundle put outside itself is the user's to take back: for wcd that is
 #'wcd --no-cron', which removes its crontab line.
-_shundle_remove()
-{
-    for _shundle_remove_param; do
-        [ X"${_shundle_remove_param}" = X"shundle" ] && _die "shundle: cannot remove myself!"
-        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}" ]; then
-            printf "%s\\n" "[-] removing ${_shundle_remove_param}"
-            rm -rf "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
-        fi
+_shundle_links_count()
+{   #how many of the links in SHUNDLE_BIN are ours
+    [ -d "${SHUNDLE_BIN}" ] || { printf "0"; return 0; }
+    _shundle_links_count__n="0"
+    for _shundle_links_count__f in "${SHUNDLE_BIN}"/*; do
+        [ -L "${_shundle_links_count__f}" ] || continue
+        case "$(readlink "${_shundle_links_count__f}" 2>/dev/null)" in
+            "${SHUNDLE_HOME}/bundle/"*) _shundle_links_count__n=$(( _shundle_links_count__n + 1 )) ;;
+        esac
     done
+    printf "%s" "${_shundle_links_count__n}"
 }
 
-_shundle_search()
-{
-    printf "%s\\n" "search module has not been defined"
-    #TODO 02-10-2013 05:12 >> show description in search results
+_shundle_unlink_bundle()
+{   #the links one bundle was backing. They dangle the moment its directory
+    #goes, and a broken link in a directory on the PATH is worse than no link
+    #at all: it answers to the name and then fails to run. The rc-driven sweep
+    #does not reach these - it takes away what the rc file stopped asking for,
+    #and removing a bundle by hand does not edit the rc file
+    [ -d "${SHUNDLE_BIN}" ] || { printf "0"; return 0; }
+    _shundle_unlink_bundle__n="0"
+    for _shundle_unlink_bundle__f in "${SHUNDLE_BIN}"/*; do
+        [ -L "${_shundle_unlink_bundle__f}" ] || continue
+        case "$(readlink "${_shundle_unlink_bundle__f}" 2>/dev/null)" in
+            "${1}"/*) rm -f "${_shundle_unlink_bundle__f}"
+                      _shundle_unlink_bundle__n=$(( _shundle_unlink_bundle__n + 1 )) ;;
+        esac
+    done
+    printf "%s" "${_shundle_unlink_bundle__n}"
 }
+
+_shundle_remove()
+{   #no argument is not "remove nothing, successfully": it is somebody who
+    #meant to name a bundle, and the usage text is the answer to that
+    [ -z "${1}" ] && { _usage >&2; return 1; }
+    _shundle_remove__rc="0"
+    for _shundle_remove_param; do
+        [ X"${_shundle_remove_param}" = X"shundle" ] && _die "shundle: cannot remove myself!"
+        _shundle_remove__dir="${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
+        #a name that is not there is not a quiet success. Saying nothing about
+        #it is how a typo reads exactly like a bundle that was deleted
+        if [ ! -d "${_shundle_remove__dir}" ]; then
+            printf "  %b!%b no bundle called %s in %s\n" \
+                "${_BIN_SHUNDLE_ENV_YELLOW}" "${_BIN_SHUNDLE_ENV_NORMAL}" \
+                "${_shundle_remove_param}" "$(_shundle_tilde "${SHUNDLE_HOME}/bundle")"
+            _shundle_remove__rc="1"
+            continue
+        fi
+        _shundle_remove__n="$(_shundle_unlink_bundle "${_shundle_remove__dir}")"
+        rm -rf "${_shundle_remove__dir}"
+        printf "  %b%s%b %-14s%bremoved%b\n" "${_BIN_SHUNDLE_ENV_GREEN}" "${_SH_DOT}" \
+            "${_BIN_SHUNDLE_ENV_NORMAL}" "${_shundle_remove_param}" \
+            "${_BIN_SHUNDLE_ENV_DIM}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+        [ "${_shundle_remove__n}" -gt 0 ] && printf "    %s %b%s commands unlinked%b\n" \
+            "${_SH_ELL}" "${_BIN_SHUNDLE_ENV_DIM}" "${_shundle_remove__n}" \
+            "${_BIN_SHUNDLE_ENV_NORMAL}"
+        _SHUNDLE_REMOVED="${_SHUNDLE_REMOVED} ${_shundle_remove_param}"
+    done
+    return "${_shundle_remove__rc}"
+}
+
+#TODO 14-09-2026 05:30 >> 'search' was in the usage text for years and was
+#never more than a printf saying it did not exist. Off the help until it does:
+#looking bundles up by name means the GitHub search API, which is rate limited
+#to ten requests a minute unauthenticated, so it needs a token to be worth
+#having and a token is a thing to ask the user for. Until then 'shundle search'
+#falls through to the usage text, which is at least true
 
 _shundle_update()
 {   #no argument is everything, a bundle name is that bundle, and anything else
@@ -1091,6 +1141,11 @@ _shundle_update()
 
 _shundle_clean()
 {
+    _SHUNDLE_T0="$(date +%s 2>/dev/null)"
+    printf "%bshundle clean%b %s %s\n\n" "${_BIN_SHUNDLE_ENV_BLUE}" \
+        "${_BIN_SHUNDLE_ENV_NORMAL}" "${_SH_ARROW}" \
+        "$(_shundle_tilde "${SHUNDLE_HOME}/bundle")"
+
     _shundle_aux_options
     _shundle_clean__array_tmp="${SHUNDLE_OPTIONS}"
     while [ "${_shundle_clean__array_tmp}" ]; do
@@ -1110,10 +1165,36 @@ _shundle_clean()
     #and the other half of the same job: a command is removed from a bundle's
     #Expose line and its link stays behind, answering to a name nothing backs
     #any more. Bundles first, so the links into one just deleted are swept here
-    _shundle_expose_orphans | while IFS= read -r _shundle_clean__link; do
-        printf "%s\\n" "[-] unlinking ${_shundle_clean__link##*/}"
+    #
+    #Through a file rather than a pipe: a variable set inside a pipeline is set
+    #in a subshell and lost when it ends
+    _shundle_clean__tmp="$(mktemp "${TMPDIR:-/tmp}/shundle.XXXXXX")" || return 1
+    _shundle_expose_orphans > "${_shundle_clean__tmp}"
+    while IFS= read -r _shundle_clean__link; do
+        [ -n "${_shundle_clean__link}" ] || continue
+        _SHUNDLE_UNLINKED="${_SHUNDLE_UNLINKED} ${_shundle_clean__link##*/}"
         rm -f "${_shundle_clean__link}"
-    done
+    done < "${_shundle_clean__tmp}"
+    rm -f "${_shundle_clean__tmp}"
+
+    #a command that did nothing has to say that it did nothing. Printing an
+    #empty line and exiting 0 leaves you unable to tell a clean tree from a
+    #broken run, and the whole point of running this is to find out which
+    [ -z "${_SHUNDLE_REMOVED}" ] && [ -z "${_SHUNDLE_UNLINKED}" ] &&
+        printf "  %b%s nothing to drop%b\n" "${_BIN_SHUNDLE_ENV_DIM}" \
+            "${_SH_RING}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+
+    printf "\n  %s %s linked" "$(_shundle_tilde "${SHUNDLE_BIN}")" "$(_shundle_links_count)"
+    [ -n "${_SHUNDLE_REMOVED}" ] && printf " %s %s removed (%s)" "${_SH_MID}" \
+        "$(printf "%s" "${_SHUNDLE_REMOVED}" | wc -w)" \
+        "$(printf "%s" "${_SHUNDLE_REMOVED}" | sed -e 's/^ //' -e 's/ /, /g')"
+    [ -n "${_SHUNDLE_UNLINKED}" ] && printf " %s %s unlinked (%s)" "${_SH_MID}" \
+        "$(printf "%s" "${_SHUNDLE_UNLINKED}" | wc -w)" \
+        "$(printf "%s" "${_SHUNDLE_UNLINKED}" | sed -e 's/^ //' -e 's/ /, /g')"
+    [ -n "${_SHUNDLE_T0}" ] && printf " %s %ss" "${_SH_MID}" \
+        "$(( $(date +%s) - _SHUNDLE_T0 ))"
+    printf "\n"
+    return 0
 }
 
 _shundle_list_links()
@@ -1271,7 +1352,6 @@ else
         #install|remove|search|update|clean|list) _shundle_$1 "$2";;
         i*) shift; _shundle_install "${@}";;
         r*) shift; _shundle_remove  "${@}";;
-        s*) shift; _shundle_search  "${2}";;
         u*) shift; _shundle_update "${@}" ;;
         c*) _shundle_clean  ;;
         l*) shift; _shundle_list "${1}" ;;

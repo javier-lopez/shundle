@@ -61,7 +61,6 @@
    # shundle list   [bundle]        - all of them, or one in full
    # shundle install      - install configured bundles
    # shundle update [bundle|script] - everything, or a piece
-   # shundle search       - search for foo in github (experimental)
    # shundle clean        - drop bundles and links the rc file stopped asking for
    #
    # run shundle without parameters for more details or see the wiki for FAQ
