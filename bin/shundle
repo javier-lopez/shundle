@@ -552,6 +552,12 @@ _shundle_install()
         #for it would check out nothing
         if [ -n "${_shundle_install__expose}" ]; then
             _shundle_install_github__sparse="$(_shundle_expose_paths "${_shundle_install__expose}")"
+            #the remove hook is infrastructure and not content: narrowed to the
+            #paths it Exposes, a repository of commands leaves .shundle-remove
+            #in the index and never on disk, and the one moment it is wanted is
+            #the moment there is nothing there to run
+            _shundle_install_github__sparse="${_shundle_install_github__sparse}
+/.shundle-remove"
             #blobs the checkout will never write are blobs not worth fetching.
             #Needs git 2.19 on this side and a server that answers, which
             #github does; anything older just carries the whole repository
@@ -577,7 +583,8 @@ _shundle_install()
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
                      printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
-                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null)"
+                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null &&
+                     git read-tree -m -u HEAD 2>&1 >/dev/null)"
                 fi
             else
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
