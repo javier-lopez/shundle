@@ -784,6 +784,22 @@ _shundle_update()
 {   #no argument is everything, a bundle name is that bundle, and anything else
     #is looked up as a command some bundle exposed
     _shundle_install update "${@}"
+
+    #a command that left its bundle - archived, renamed, deleted upstream -
+    #leaves a link in SHUNDLE_BIN pointing at a file that is no longer there,
+    #and update is the very operation that does it. Sweeping here rather than
+    #waiting for clean is the difference between an update that finishes the
+    #job and one that leaves the directory inconsistent until you remember.
+    #
+    #Only the links: clean's other half is rm -rf over a bundle directory, and
+    #that one must stay a thing you ask for by name. And only on a full update:
+    #with an argument this is a narrow operation, and sweeping links belonging
+    #to bundles nobody named would be a surprise
+    [ -n "${1}" ] && return 0
+    _shundle_expose_orphans | while IFS= read -r _shundle_update__link; do
+        printf "%s\\n" "[-] unlinking ${_shundle_update__link##*/}"
+        rm -f "${_shundle_update__link}"
+    done
 }
 
 _shundle_clean()
