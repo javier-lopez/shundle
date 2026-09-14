@@ -612,15 +612,15 @@ _shundle_install()
               sh -c "${_shundle_install_post__cmd}" ) 2>&1 )"
         _shundle_install_post__rc="${?}"
 
-        #a command that ran, worked and said nothing is not news. One that
-        #failed, or that has something to tell you, brings its bundle into the
-        #tree along with it
-        [ "${_shundle_install_post__rc}" -eq 0 ] &&
-            [ -z "${_shundle_install_post__out}" ] && return 0
-
+        #a command that ran is a thing that happened, and it brings its bundle
+        #into the tree whether or not it had anything to say. Saying nothing is
+        #the normal outcome of a PostInstall that fetches something quietly,
+        #and leaving it out would mean the seconds it took were never
+        #accounted for anywhere
         _shundle_tree_flush
         if [ "${_shundle_install_post__rc}" -eq 0 ]; then
-            printf "    %s PostInstall\n" "${_shundle_install_post__branch}"
+            printf "    %s PostInstall %bok%b\n" "${_shundle_install_post__branch}" \
+                "${_BIN_SHUNDLE_ENV_GREEN}" "${_BIN_SHUNDLE_ENV_NORMAL}"
         else
             printf "    %s PostInstall %bfailed%b\n" "${_shundle_install_post__branch}" \
                 "${_BIN_SHUNDLE_ENV_RED}" "${_BIN_SHUNDLE_ENV_NORMAL}"
