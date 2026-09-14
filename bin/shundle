@@ -552,12 +552,6 @@ _shundle_install()
         #for it would check out nothing
         if [ -n "${_shundle_install__expose}" ]; then
             _shundle_install_github__sparse="$(_shundle_expose_paths "${_shundle_install__expose}")"
-            #the remove hook is infrastructure and not content: narrowed to the
-            #paths it Exposes, a repository of commands leaves .shundle-remove
-            #in the index and never on disk, and the one moment it is wanted is
-            #the moment there is nothing there to run
-            _shundle_install_github__sparse="${_shundle_install_github__sparse}
-/.shundle-remove"
             #blobs the checkout will never write are blobs not worth fetching.
             #Needs git 2.19 on this side and a server that answers, which
             #github does; anything older just carries the whole repository
@@ -583,8 +577,7 @@ _shundle_install()
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
                      printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
-                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null &&
-                     git read-tree -m -u HEAD 2>&1 >/dev/null)"
+                     git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null)"
                 fi
             else
                 if [ X"${_shundle_install_github__revision}" = X":${1}" ]; then
@@ -770,33 +763,37 @@ _shundle_install()
     #TODO 02-10-2013 05:12 >> activate newly added bundles?
 }
 
-_shundle_remove_hook()
-{   #a bundle that changed something outside its own directory - a line in the
-    #crontab, a file in ~/.local, a service - is the only thing that knows how
-    #to undo it, and the rc file cannot be asked: 'clean' removes the bundles
-    #the rc file no longer names, so by the time the question comes up the line
-    #that would have answered it is the line that was deleted. The bundle is
-    #still on disk right up to the rm, so the answer lives there instead, in a
-    #.shundle-remove at its root. It is run, never sourced, from the same
-    #directory a PostInstall would run in, and a failure is reported and
-    #ignored: nothing a bundle says on its way out may keep it from going
-    [ -n "${1}" ] || return 0
-    _shundle_remove_hook__dir="${1}"
-    [ -d "${1}/${1##*/}" ] && [ -f "${1}/${1##*/}/.shundle-remove" ] && \
-        _shundle_remove_hook__dir="${1}/${1##*/}"
-    [ -f "${_shundle_remove_hook__dir}/.shundle-remove" ] || return 0
-
-    printf "%s\\n" "[*] PreRemove ${_shundle_remove_hook__dir##*/}/.shundle-remove"
-    ( cd "${_shundle_remove_hook__dir}" || exit 1
-      sh .shundle-remove ) || printf "%s\\n" "    failed"
-}
-
+#TODO 14-09-2026 03:40 >> nothing undoes what a PostInstall did outside the
+#bundle - a line in the crontab, a file in ~/.local, a service - and the bundle
+#is deleted below with that still in place. A crontab line calling a script
+#that no longer exists is a mail from cron every night for as long as the
+#machine lives.
+#
+#The obvious answer, a PreRm beside PostInstall in the rc file, does not hold:
+#'clean' removes the bundles the rc file no longer asks for, so the line that
+#would carry the instruction is the line that was just deleted. Reading
+#commented-out blocks covers the habit of commenting a section instead of
+#cutting it, and only that habit - deleting is supported and cannot be read.
+#
+#The alternative, written down and deliberately not built: a .shundle/
+#directory at the root of a bundle, carrying a prerm this would run from the
+#bundle directory before the rm. It survives its own rc entry being deleted,
+#because it is not in the rc file at all. Two things are needed for it to work
+#at all: the sparse checkout of a bundle that Exposes paths has to ask for
+#/.shundle/ by name, or the file stays in the index and never reaches the disk;
+#and 'update' has to read-tree after the pull, or a pattern added to the spec
+#names files git already has and leaves alone.
+#
+#It was not taken because a bundle would then answer to two contracts for the
+#same question, the rc file's and its own, and a rule nobody can state in one
+#sentence is worse than no rule. Until one of the two is chosen outright, what
+#a bundle put outside itself is the user's to take back: for wcd that is
+#'wcd --no-cron', which removes its crontab line.
 _shundle_remove()
 {
     for _shundle_remove_param; do
         [ X"${_shundle_remove_param}" = X"shundle" ] && _die "shundle: cannot remove myself!"
         if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}" ]; then
-            _shundle_remove_hook "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
             printf "%s\\n" "[-] removing ${_shundle_remove_param}"
             rm -rf "${SHUNDLE_HOME}/bundle/${_shundle_remove_param}"
         fi
