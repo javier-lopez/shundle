@@ -2,7 +2,7 @@
 
 #fix weird completion-ignore-case case
 #[ X"${2}" = X"on" ] && { shift; shift; }
-[ X"${1}" = X"-c" ] && { shift; SHUNDLE_ENV_COLOR="1"; }
+[ X"${1}" = X"-c" ] && { shift; SHUNDLE_ENV_COLOR="1F"; }
 
 #required for clean|install at first deployment time
 [ -z "${SHUNDLE_HOME}" ] && SHUNDLE_HOME="${HOME}/.shundle"
@@ -14,12 +14,34 @@
 #non interactive git
 GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
 
-if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ]; then
+#colour when it is going to a terminal, which is the only place it means
+#anything: redirected into a file or a pipe these are eight bytes of noise in
+#front of every word. NO_COLOR turns it off the way it turns it off everywhere
+#else, and -c forces it on for the times you are piping into something that
+#does understand them
+#-c is the only thing that beats NO_COLOR, because -c is somebody saying it
+#about this run. An explicit SHUNDLE_ENV_COLOR=1 in the rc file is a standing
+#preference and NO_COLOR is a standing preference too, and the one that says
+#"not here, not now" is the one to honour
+[ -n "${NO_COLOR}" ] && [ X"${SHUNDLE_ENV_COLOR}" != X"1F" ] && SHUNDLE_ENV_COLOR="0"
+[ -t 1 ] && [ -z "${NO_COLOR}" ] && [ X"${SHUNDLE_ENV_COLOR}" = X"" ] &&
+    SHUNDLE_ENV_COLOR="1"
+
+#the tree is drawn with whatever the terminal can render. Box drawing is not
+#everywhere - TERM=linux and a C locale both answer in ASCII - and a shape that
+#arrives as a question mark is worse than the plain one it replaced
+case "${LC_ALL:-${LC_CTYPE:-${LANG}}}" in
+    *[Uu][Tt][Ff]*) _SH_DOT="●"; _SH_RING="○"; _SH_TEE="├─"; _SH_ELL="└─"; _SH_BAR="│"; _SH_ARROW="→"; _SH_MID="·" ;;
+    *)              _SH_DOT="*"; _SH_RING="o"; _SH_TEE="|-"; _SH_ELL="\`-"; _SH_BAR="|"; _SH_ARROW="->"; _SH_MID="-" ;;
+esac
+
+if [ X"${SHUNDLE_ENV_COLOR}" = X"1" ] || [ X"${SHUNDLE_ENV_COLOR}" = X"1F" ]; then
     _BIN_SHUNDLE_ENV_RED='\033[1;31m'
     _BIN_SHUNDLE_ENV_BLUE='\033[1;34m'
     _BIN_SHUNDLE_ENV_GREEN='\033[32;02m'
     _BIN_SHUNDLE_ENV_NORMAL='\033[1;00m'
     _BIN_SHUNDLE_ENV_YELLOW='\033[1;33m'
+    _BIN_SHUNDLE_ENV_DIM='\033[2m'
 fi
 
 _usage()
@@ -339,6 +361,31 @@ _shundle_expose_wanted()
     printf "%s" "${_SHUNDLE_EXPOSE_WANT}"
 }
 
+_shundle_install_tail()
+{   #everything that can only be said once the last bundle is done
+    [ -n "${_SHUNDLE_UNCHANGED}" ] && printf "  %b%s %s unchanged:%s%b\n" \
+        "${_BIN_SHUNDLE_ENV_DIM}" "${_SH_RING}" \
+        "$(printf "%s" "${_SHUNDLE_UNCHANGED}" | wc -w)" \
+        "${_SHUNDLE_UNCHANGED}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+
+    _shundle_expose_report
+
+    printf "\n  %s %s linked" "$(_shundle_tilde "${SHUNDLE_BIN}")" \
+        "$(printf "%s" "${_SHUNDLE_EXPOSE_LINKED}" | wc -w)"
+    [ -n "${_SHUNDLE_UNLINKED}" ] && printf " %s %s unlinked (%s)" "${_SH_MID}" \
+        "$(printf "%s" "${_SHUNDLE_UNLINKED}" | wc -w)" \
+        "$(printf "%s" "${_SHUNDLE_UNLINKED}" | sed -e 's/^ //' -e 's/ /, /g')"
+    [ -n "${_SHUNDLE_FAILED}" ] && printf " %s %b%s failed%b" "${_SH_MID}" \
+        "${_BIN_SHUNDLE_ENV_RED}" "$(printf "%s" "${_SHUNDLE_FAILED}" | wc -w)" \
+        "${_BIN_SHUNDLE_ENV_NORMAL}"
+    #seconds and not milliseconds: date is what every shell has, and nobody
+    #reads this number to three decimals
+    [ -n "${_SHUNDLE_T0}" ] && printf " %s %ss" "${_SH_MID}" \
+        "$(( $(date +%s) - _SHUNDLE_T0 ))"
+    printf "\n"
+    return 0
+}
+
 _shundle_expose_orphans()
 {   #links of ours that nothing asks for any more: the bundle left the rc file,
     #or its Expose line stopped naming them. Only ours - a link in SHUNDLE_BIN
@@ -393,25 +440,52 @@ _shundle_expose_link()
     IFS="${_shundle_expose_link__ifs}"
 }
 
+_shundle_tilde()
+{   #a path under the home written the way you would say it out loud
+    case "${1}" in
+        "${HOME}"/*) printf "~%s" "${1#${HOME}}" ;;
+        *)           printf "%s" "${1}" ;;
+    esac
+}
+
+_shundle_head()
+{   #the revision a bundle is sitting on, or nothing if it is not a checkout.
+    #Asked before and after, this is the only way to know whether an update
+    #actually brought anything: git pull's own words go to /dev/null, and
+    #saying "updated" about a pull that changed nothing is the kind of noise
+    #that teaches you to stop reading the output
+    [ -d "${1}/.git" ] || return 0
+    ( cd "${1}" 2>/dev/null && git rev-parse --short HEAD 2>/dev/null )
+}
+
+_shundle_tree_flush()
+{   #the line naming a bundle is held back until something has to be said
+    #under it, so a bundle that was already up to date with nothing to run is
+    #counted at the end instead of spending a line to say nothing happened
+    [ -n "${_SHUNDLE_TREE_PENDING}" ] || return 1
+    printf "%b\n" "${_SHUNDLE_TREE_PENDING}"
+    _SHUNDLE_TREE_PENDING=""
+    return 0
+}
+
 _shundle_expose_report()
 {
-    [ -n "${_SHUNDLE_EXPOSE_LINKED}" ] &&
-        printf "\\n [*] Expose linked %s command(s) into %s" \
-            "$(printf "%s" "${_SHUNDLE_EXPOSE_LINKED}" | wc -w)" "${SHUNDLE_BIN}"
-    [ -n "${_SHUNDLE_EXPOSE_KEPT}" ] && {
-        printf "\\n [!] left alone, a real file is already there:"
-        printf "%s" "${_SHUNDLE_EXPOSE_KEPT}"
-        printf "\\n     move or delete them and run install again to link these"; }
-    [ -n "${_SHUNDLE_EXPOSE_CLASH}" ] && {
-        printf "\\n [!] two paths want the same name, the first one kept it:"
-        printf "%s" "${_SHUNDLE_EXPOSE_CLASH}"; }
-    [ -n "${_SHUNDLE_EXPOSE_MISSING}" ] && {
-        printf "\\n [!] Expose names a path the bundle does not have:"
-        printf "%s" "${_SHUNDLE_EXPOSE_MISSING}"; }
-    [ -n "${_SHUNDLE_EXPOSE_NOEXEC}" ] && {
-        printf "\\n [!] not executable in the bundle, so not a command:"
-        printf "%s" "${_SHUNDLE_EXPOSE_NOEXEC}"
-        printf "\\n     chmod +x them where they live and run install again"; }
+    _shundle_expose_report__w()
+    {   #one warning, under the tree rather than shouted at its left margin
+        [ -n "${2}" ] || return 0
+        printf "  %b!%b %s:%s\n" "${_BIN_SHUNDLE_ENV_YELLOW}" \
+            "${_BIN_SHUNDLE_ENV_NORMAL}" "${1}" "${2}"
+        [ -n "${3}" ] && printf "    %s\n" "${3}"
+        return 0
+    }
+    _shundle_expose_report__w "left alone, a real file is already there" \
+        "${_SHUNDLE_EXPOSE_KEPT}" "move or delete them, then install again"
+    _shundle_expose_report__w "two paths want the same name, the first kept it" \
+        "${_SHUNDLE_EXPOSE_CLASH}"
+    _shundle_expose_report__w "Expose names a path the bundle does not have" \
+        "${_SHUNDLE_EXPOSE_MISSING}"
+    _shundle_expose_report__w "not executable in the bundle, so not a command" \
+        "${_SHUNDLE_EXPOSE_NOEXEC}" "chmod +x them where they live, then install again"
     return 0
 }
 
@@ -458,11 +532,19 @@ _shundle_update_command()
 _shundle_install()
 {
     [ X"${1}" = X"update" ] && { _shundle_install__update="true"; shift; }
+    _SHUNDLE_T0="$(date +%s 2>/dev/null)"
 
     _shundle_install_header()
     {
         [ -z "${_shundle_install_header__init}" ] || return 0 #run only once
-        printf "Installing bundles to %s" "${SHUNDLE_HOME}/bundle"
+        if [ -n "${_shundle_install__update}" ]; then
+            _shundle_install_header__verb="update"
+        else
+            _shundle_install_header__verb="install"
+        fi
+        printf "%bshundle %s%b %s %s\n\n" "${_BIN_SHUNDLE_ENV_BLUE}" \
+            "${_shundle_install_header__verb}" "${_BIN_SHUNDLE_ENV_NORMAL}" \
+            "${_SH_ARROW}" "$(_shundle_tilde "${SHUNDLE_HOME}/bundle")"
         _shundle_install_header__init="true"
     }
 
@@ -499,26 +581,54 @@ _shundle_install()
             }' "${SHUNDLE_RC}")"
         [ -n "${_shundle_install_post__cmd}" ] || return 0
 
-        printf "\\n [*] PostInstall '%s' " "${_shundle_install_post__cmd}"
         #from the plugin's own directory when there is one, so the command can
-        #name its files without repeating the bundle's name
-        ( if [ -d "${2}/${2##*/}" ]; then cd "${2}/${2##*/}" || exit 1
-          else cd "${2}" || exit 1; fi
-          sh -c "${_shundle_install_post__cmd}" ) || printf "%s" "failed"
+        #name its files without repeating the bundle's name. The output is held
+        #rather than let through: it has to arrive indented under the bundle it
+        #belongs to, and a command that says nothing should not be echoed back
+        #at you either - the command itself is in the rc file, where you wrote it
+        _shundle_install_post__out="$(
+            ( if [ -d "${2}/${2##*/}" ]; then cd "${2}/${2##*/}" || exit 1
+              else cd "${2}" || exit 1; fi
+              sh -c "${_shundle_install_post__cmd}" ) 2>&1 )"
+        _shundle_install_post__rc="${?}"
+
+        #a command that ran, worked and said nothing is not news. One that
+        #failed, or that has something to tell you, brings its bundle into the
+        #tree along with it
+        [ "${_shundle_install_post__rc}" -eq 0 ] &&
+            [ -z "${_shundle_install_post__out}" ] && return 0
+
+        _shundle_tree_flush
+        if [ "${_shundle_install_post__rc}" -eq 0 ]; then
+            printf "    %s PostInstall\n" "${_shundle_install_post__branch}"
+        else
+            printf "    %s PostInstall %bfailed%b\n" "${_shundle_install_post__branch}" \
+                "${_BIN_SHUNDLE_ENV_RED}" "${_BIN_SHUNDLE_ENV_NORMAL}"
+        fi
+        [ -n "${_shundle_install_post__out}" ] &&
+            printf "%s\n" "${_shundle_install_post__out}" |
+            while IFS= read -r _shundle_install_post__l; do
+                printf "    %s  %b%s%b\n" "${_SH_BAR}" \
+                    "${_BIN_SHUNDLE_ENV_DIM}" "${_shundle_install_post__l}" \
+                    "${_BIN_SHUNDLE_ENV_NORMAL}"
+            done
+        return 0
     }
 
     _shundle_install_aux()
     {
         [ -z "${1}" ] && return 0
         _shundle_install_header
-        printf "\\n [+] Bundle '%s' " "${1}"
 
         _shundle_install_aux__name="$(_shundle_install_name "${1}")"
-        if [ -d "${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}" ]; then
+        _shundle_install_aux__dir="${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}"
+        if [ -d "${_shundle_install_aux__dir}" ]; then
             _shundle_install_aux__had="1"
         else
             _shundle_install_aux__had=""
         fi
+        #where it stood before anything was fetched, to compare with after
+        _shundle_install_aux__was="$(_shundle_head "${_shundle_install_aux__dir}")"
 
         #read before the clone, because the paths it names are what the clone
         #will ask git for. Kept in a variable the handlers can see: the rc knows
@@ -527,6 +637,7 @@ _shundle_install()
 
         _shundle_install__handler="${1%%:*}:"
         _shundle_install__bundle="${1#$_shundle_install__handler}"
+        _shundle_install__error=""
 
         case "${_shundle_install__handler}" in
             ''|*/*) case "${1}" in
@@ -540,36 +651,71 @@ _shundle_install()
             http*|https*|ftp*)           _shundle_install_web    "${1}"                           ;;
             *) _shundle_install__error="unknown handler: "${_shundle_install__handler}""; _false  ;;
         esac
-        #Bundle 'gh:javier-lopez/shundle-plugins/eternalize'
-        #Bundle 'github:javier-lopez/shundle-plugins/colorize'
-        #Bundle 'git@github.com:javier-lopez/shundle-plugins/aliazator'
-        #Bundle 'username/repository'
-        #Bundle 'username/repository.git'
-        #Bundle 'username/repository:master'
-        #Bundle 'username/repository.git:1234567'
-
-        #Bundle 'https://domain.tld/path/awesome-script'
-        #Bundle 'http://domain.tld/path/awesome-script'
-        #Bundle 'ftp://domain.tld/path/awesome-script'
-
-        #Bundle 'file://~/path/awesome-script'
-        #Bundle 'file://$HOME/path/awesome-script'
-        #Bundle 'file://home/username/path/awesome-script'
-        #Bundle '/home/username/path/awesome-script'
-        #Bundle '$HOME/path/awesome-script'
-
         #TODO 29-07-2014 13:52 >> add debug information on fail
-        [ X"${?}" = X"0" ] || { printf "    %s" "failed"; printf "\\n%s" "${_shundle_install__error}"; }
+        _shundle_install_aux__rc="${?}"
+        _shundle_install_aux__now="$(_shundle_head "${_shundle_install_aux__dir}")"
+
+        #padded to a fixed width rather than to the longest name, which is not
+        #known until the last bundle is done and this line goes out before it.
+        #A longer name pushes its own column right and nothing else moves
+        _shundle_install_aux__pad="$(printf "%-14s" "${_shundle_install_aux__name}")"
+
+        #the bundle's own line is written here and printed later, or not at
+        #all: what happens underneath it decides whether it earned a line
+        if [ "${_shundle_install_aux__rc}" -ne 0 ]; then
+            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_RED}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__pad}${_BIN_SHUNDLE_ENV_RED}failed${_BIN_SHUNDLE_ENV_NORMAL}"
+            _shundle_tree_flush
+            [ -n "${_shundle_install__error}" ] &&
+                printf "    %s  %s\n" "${_SH_BAR}" "${_shundle_install__error}"
+            _SHUNDLE_FAILED="${_SHUNDLE_FAILED} ${_shundle_install_aux__name}"
+        elif [ -z "${_shundle_install_aux__had}" ]; then
+            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__pad}${_shundle_install_aux__now:-new}"
+            _shundle_tree_flush
+            _SHUNDLE_MOVED="${_SHUNDLE_MOVED} ${_shundle_install_aux__name}"
+        elif [ X"${_shundle_install_aux__was}" != X"${_shundle_install_aux__now}" ]; then
+            _shundle_install_aux__n="$( cd "${_shundle_install_aux__dir}" 2>/dev/null &&
+                git rev-list --count "${_BIN_SHUNDLE_ENV_DIM}${_shundle_install_aux__was}..${_shundle_install_aux__now}${_BIN_SHUNDLE_ENV_NORMAL}" 2>/dev/null )"
+            case "${_shundle_install_aux__n}" in
+                1)  _shundle_install_aux__n="1 commit"  ;;
+                ''|0) _shundle_install_aux__n=""        ;;
+                *)  _shundle_install_aux__n="${_shundle_install_aux__n} commits" ;;
+            esac
+            _SHUNDLE_TREE_PENDING="  ${_BIN_SHUNDLE_ENV_GREEN}${_SH_DOT}${_BIN_SHUNDLE_ENV_NORMAL} ${_shundle_install_aux__pad}${_shundle_install_aux__was}..${_shundle_install_aux__now}${_shundle_install_aux__n:+  ${_shundle_install_aux__n}}"
+            _shundle_tree_flush
+            _SHUNDLE_MOVED="${_SHUNDLE_MOVED} ${_shundle_install_aux__name}"
+        else
+            _SHUNDLE_TREE_PENDING="  ${_SH_DOT} ${_shundle_install_aux__name}"
+        fi
+
+        #a PostInstall is the last branch unless this bundle also Exposes
+        if [ -n "${_shundle_install__expose}" ]; then
+            _shundle_install_post__branch="${_SH_TEE}"
+        else
+            _shundle_install_post__branch="${_SH_ELL}"
+        fi
 
         #only for a bundle that was just cloned, or refreshed by 'update'
         if [ -z "${_shundle_install_aux__had}" ] || [ -n "${_shundle_install__update}" ]; then
-            _shundle_install_post "${1}" "${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}"
+            _shundle_install_post "${1}" "${_shundle_install_aux__dir}"
         fi
 
         #the links go up every time, not only on a fresh clone: a bundle that
         #gained a command should hand it to you without being reinstalled
-        _shundle_expose_link "${SHUNDLE_HOME}/bundle/${_shundle_install_aux__name}" \
-                             "${_shundle_install__expose}"
+        _shundle_install_aux__before="$(printf "%s" "${_SHUNDLE_EXPOSE_LINKED}" | wc -w)"
+        _shundle_expose_link "${_shundle_install_aux__dir}" "${_shundle_install__expose}"
+        _shundle_install_aux__after="$(printf "%s" "${_SHUNDLE_EXPOSE_LINKED}" | wc -w)"
+
+        #the count of what this bundle offers, but only under a bundle that is
+        #already on screen: for one that did not move it is not news either
+        [ -n "${_shundle_install__expose}" ] && [ -z "${_SHUNDLE_TREE_PENDING}" ] &&
+            printf "    %s Expose %s commands\n" "${_SH_ELL}" \
+                "$(( _shundle_install_aux__after - _shundle_install_aux__before ))"
+
+        #never printed, so nothing happened to it
+        [ -n "${_SHUNDLE_TREE_PENDING}" ] && {
+            _SHUNDLE_UNCHANGED="${_SHUNDLE_UNCHANGED} ${_shundle_install_aux__name}"
+            _SHUNDLE_TREE_PENDING=""; }
+        return 0
     }
 
     _shundle_install_github()
@@ -826,8 +972,7 @@ _shundle_install()
             _shundle_install_aux "${_shundle_install_param}"
         done
     fi
-    _shundle_expose_report
-    printf "\\n"
+    [ -n "${_SHUNDLE_DEFER_TAIL}" ] || _shundle_install_tail
 
     #TODO 02-10-2013 05:12 >> activate newly added bundles?
 }
@@ -878,6 +1023,7 @@ _shundle_search()
 _shundle_update()
 {   #no argument is everything, a bundle name is that bundle, and anything else
     #is looked up as a command some bundle exposed
+    _SHUNDLE_DEFER_TAIL="1"
     _shundle_install update "${@}"
 
     #a command that left its bundle - archived, renamed, deleted upstream -
@@ -891,10 +1037,22 @@ _shundle_update()
     #with an argument this is a narrow operation, and sweeping links belonging
     #to bundles nobody named would be a surprise
     [ -n "${1}" ] && return 0
-    _shundle_expose_orphans | while IFS= read -r _shundle_update__link; do
-        printf "%s\\n" "[-] unlinking ${_shundle_update__link##*/}"
+    #the names are collected rather than announced one per line: a link that
+    #went is a footnote to the update, not an event of its own.
+    #
+    #Through a file and not through a pipe, because a variable set inside a
+    #pipeline is set in a subshell and lost when it ends - and not through
+    #"for x in $(...)" either, which would split a path on its spaces and then
+    #glob what is left, in a loop whose next statement is rm
+    _shundle_update__tmp="$(mktemp "${TMPDIR:-/tmp}/shundle.XXXXXX")" || return 1
+    _shundle_expose_orphans > "${_shundle_update__tmp}"
+    while IFS= read -r _shundle_update__link; do
+        [ -n "${_shundle_update__link}" ] || continue
+        _SHUNDLE_UNLINKED="${_SHUNDLE_UNLINKED} ${_shundle_update__link##*/}"
         rm -f "${_shundle_update__link}"
-    done
+    done < "${_shundle_update__tmp}"
+    rm -f "${_shundle_update__tmp}"
+    _shundle_install_tail
 }
 
 _shundle_clean()
