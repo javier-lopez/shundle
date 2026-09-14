@@ -458,11 +458,30 @@ _shundle_head()
     ( cd "${1}" 2>/dev/null && git rev-parse --short HEAD 2>/dev/null )
 }
 
+_shundle_busy()
+{   #$1 the bundle, $2 what is happening to it right now. Written without a
+    #newline and taken back later, so it costs nothing once it is over: a
+    #bundle that turns out to have nothing to report leaves no trace of having
+    #been looked at, and one that does gets its real line in the same place.
+    #
+    #Only to a terminal. Down a pipe a carriage return is not a rubber, it is
+    #a byte, and the transcript would carry every one of these
+    [ -t 1 ] || return 0
+    printf "\r  %s %s%s" "${_SH_DOT}" "$(printf "%-14s" "${1}")" "${2}"
+}
+
+_shundle_busy_clear()
+{
+    [ -t 1 ] || return 0
+    printf "\r%-72s\r" ""
+}
+
 _shundle_tree_flush()
 {   #the line naming a bundle is held back until something has to be said
     #under it, so a bundle that was already up to date with nothing to run is
     #counted at the end instead of spending a line to say nothing happened
     [ -n "${_SHUNDLE_TREE_PENDING}" ] || return 1
+    _shundle_busy_clear
     printf "%b\n" "${_SHUNDLE_TREE_PENDING}"
     _SHUNDLE_TREE_PENDING=""
     return 0
@@ -580,6 +599,7 @@ _shundle_install()
                 next
             }' "${SHUNDLE_RC}")"
         [ -n "${_shundle_install_post__cmd}" ] || return 0
+        _shundle_busy "${_shundle_install_aux__name}" "PostInstall..."
 
         #from the plugin's own directory when there is one, so the command can
         #name its files without repeating the bundle's name. The output is held
@@ -638,6 +658,12 @@ _shundle_install()
         _shundle_install__handler="${1%%:*}:"
         _shundle_install__bundle="${1#$_shundle_install__handler}"
         _shundle_install__error=""
+
+        if [ -n "${_shundle_install_aux__had}" ]; then
+            _shundle_busy "${_shundle_install_aux__name}" "fetching..."
+        else
+            _shundle_busy "${_shundle_install_aux__name}" "cloning..."
+        fi
 
         case "${_shundle_install__handler}" in
             ''|*/*) case "${1}" in
@@ -712,6 +738,7 @@ _shundle_install()
                 "$(( _shundle_install_aux__after - _shundle_install_aux__before ))"
 
         #never printed, so nothing happened to it
+        _shundle_busy_clear
         [ -n "${_SHUNDLE_TREE_PENDING}" ] && {
             _SHUNDLE_UNCHANGED="${_SHUNDLE_UNCHANGED} ${_shundle_install_aux__name}"
             _SHUNDLE_TREE_PENDING=""; }
