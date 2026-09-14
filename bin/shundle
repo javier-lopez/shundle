@@ -482,8 +482,12 @@ _shundle_tree_flush()
 {   #the line naming a bundle is held back until something has to be said
     #under it, so a bundle that was already up to date with nothing to run is
     #counted at the end instead of spending a line to say nothing happened
-    [ -n "${_SHUNDLE_TREE_PENDING}" ] || return 1
+    #the transient line goes first and unconditionally. A bundle that already
+    #printed its own line - because it moved, and said so beside its name -
+    #has nothing pending, and used to leave here through the return below
+    #with "PostInstall..." still on screen for the next line to land on top of
     _shundle_busy_clear
+    [ -n "${_SHUNDLE_TREE_PENDING}" ] || return 1
     printf "%b\n" "${_SHUNDLE_TREE_PENDING}"
     _SHUNDLE_TREE_PENDING=""
     return 0
