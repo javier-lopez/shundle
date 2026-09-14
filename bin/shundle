@@ -633,10 +633,19 @@ _shundle_install()
                     #read-tree is what moves the spec into the working tree,
                     #both ways - it takes down what was added and removes what
                     #is no longer asked for. It refuses rather than clobber a
-                    #file somebody edited, and a bundle is not a place to edit
+                    #file somebody edited, and a bundle is not a place to edit.
+                    #
+                    #The refresh before it is not decoration: read-tree will
+                    #not remove a file the index sees as out of date, and it
+                    #says so on stderr and still answers 0, so a narrowing
+                    #would quietly not happen and the file would go on being
+                    #linked. Its own status is ignored for the same reason it
+                    #is run - a stale entry is the normal state after a copy,
+                    #not a failure worth stopping the update for
                     _shundle_install__error="$(cd "${SHUNDLE_HOME}/bundle/${_shundle_install_github__bundle}" &&
                      printf "%s\\n" "${_shundle_install_github__sparse}" > .git/info/sparse-checkout &&
                      git pull 2>&1 >/dev/null && git submodule update --init --recursive 2>&1 >/dev/null &&
+                     git update-index -q --refresh 2>&1 >/dev/null
                      git read-tree -m -u HEAD 2>&1 >/dev/null)"
                 fi
             else
