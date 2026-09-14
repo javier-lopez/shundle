@@ -43,6 +43,8 @@
            Expose="sh/tools"                                 #the whole directory
            Expose="perl: !simple-cat !simple-grep"           #all of it but those
            Expose="python/tools: mailgun monkey_typewriter"  #only those
+           Expose="python/tools: mailgun simple-*"           #names and patterns
+           Expose="perl: !simple-*"                          #patterns exclude too
            Expose="sh/tools/ports"                           #a single file
 
        #from non GitHub

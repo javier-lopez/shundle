@@ -94,12 +94,22 @@ _shundle_aux_options()
 #        Expose="sh/tools"                             the whole directory
 #        Expose="perl: !simple-cat !simple-grep"       all of it but those
 #        Expose="python/tools: mailgun monkey_typewriter"   only those
+#        Expose="python/tools: mailgun simple-*"       a name and a family
+#        Expose="perl: !simple-*"                      all of it but a family
 #        Expose="sh/tools/ports"                       a single file
 #
 #The word before the colon is a path inside the repository; the words after are
 #names inside it. A name with '!' in front is dropped. If any name comes
 #without '!' the list is what to take; if every name has one, it is what to
 #leave out. The same idiom the dotfiles .gitignore uses.
+#
+#A name may be a shell pattern, on either side of the '!'. It is matched inside
+#the bundle and nowhere else - in particular not against the directory shundle
+#was run from, which is a real risk for a repository of commands and the reason
+#the lists are split with globbing switched off. One difference between a
+#pattern and a name: a pattern never takes a dotfile or a .md, because nobody
+#means the README when they write '*', while a file asked for by its own name
+#is linked whatever it is called.
 #
 #Those paths do three jobs, not one: they are what gets checked out, what gets
 #downloaded, and what gets linked into SHUNDLE_BIN.
@@ -219,6 +229,18 @@ _shundle_expose_one()
         return 1
     fi
 
+    #the token list is split with globbing off from here on. Splitting needs
+    #the variable unquoted, and unquoted is also what makes the shell match
+    #'simple-*' against the directory shundle happens to have been run from -
+    #which, for a repository of commands, is quite likely to be one that
+    #answers. The pattern is meant for the bundle, and it is expanded there,
+    #once, below
+    case "${-}" in
+        *f*) _shundle_expose_one__glob="0" ;;
+        *)   _shundle_expose_one__glob="1" ;;
+    esac
+    set -f
+
     #one name without '!' turns the list into what to take
     _shundle_expose_one__white=""
     for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
@@ -231,15 +253,35 @@ _shundle_expose_one()
     if [ -n "${_shundle_expose_one__white}" ]; then
         for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
             case "${_shundle_expose_one__w}" in !*) continue ;; esac
-            if [ -f "${_shundle_expose_one__src}/${_shundle_expose_one__w}" ]; then
-                "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__src}/${_shundle_expose_one__w}"
-            else
+            #a name with no wildcard in it expands to itself, so one loop
+            #serves 'mailgun' and 'simple-*' alike
+            [ "${_shundle_expose_one__glob}" = "1" ] && set +f
+            _shundle_expose_one__hit=""
+            for _shundle_expose_one__f in "${_shundle_expose_one__src}"/${_shundle_expose_one__w}; do
+                [ -f "${_shundle_expose_one__f}" ] || continue
+                #naming a file is asking for that file, whatever it is called;
+                #naming a pattern is not, and nobody means the README when they
+                #write '*'. So the rule that keeps documentation and dotfiles
+                #off your PATH applies to patterns and never to exact names
+                case "${_shundle_expose_one__w}" in
+                    *[*?[]*) case "${_shundle_expose_one__f##*/}" in
+                                 .*|*.md) continue ;;
+                             esac ;;
+                esac
+                _shundle_expose_one__hit="1"
+                "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__f}"
+            done
+            set -f
+            #a pattern that matched nothing is as wrong as a name that is not
+            #there, and reads the same way in the report
+            [ -n "${_shundle_expose_one__hit}" ] ||
                 _SHUNDLE_EXPOSE_MISSING="${_SHUNDLE_EXPOSE_MISSING} ${_shundle_expose_one__path}/${_shundle_expose_one__w}"
-            fi
         done
+        [ "${_shundle_expose_one__glob}" = "1" ] && set +f
         return 0
     fi
 
+    [ "${_shundle_expose_one__glob}" = "1" ] && set +f
     for _shundle_expose_one__f in "${_shundle_expose_one__src}"/*; do
         [ -f "${_shundle_expose_one__f}" ] || continue
         _shundle_expose_one__n="${_shundle_expose_one__f##*/}"
@@ -247,10 +289,18 @@ _shundle_expose_one()
         #command, and linking them puts noise in your PATH
         case "${_shundle_expose_one__n}" in .*|*.md) continue ;; esac
         _shundle_expose_one__skip=""
+        #globbing off again to split the list, on the same grounds as above.
+        #'case' still matches patterns with -f set: it is pathname expansion
+        #that is switched off, not pattern matching, which is what lets
+        #'!simple-*' exclude the family the way '!simple-cat' excludes the file
+        set -f
         for _shundle_expose_one__w in ${_shundle_expose_one__sel}; do
-            [ X"${_shundle_expose_one__w}" = X"!${_shundle_expose_one__n}" ] &&
-                _shundle_expose_one__skip="1"
+            case "${_shundle_expose_one__w}" in !*) ;; *) continue ;; esac
+            case "${_shundle_expose_one__n}" in
+                ${_shundle_expose_one__w#!}) _shundle_expose_one__skip="1" ;;
+            esac
         done
+        [ "${_shundle_expose_one__glob}" = "1" ] && set +f
         [ -n "${_shundle_expose_one__skip}" ] ||
             "${_shundle_expose__do:-_shundle_expose_ln}" "${_shundle_expose_one__f}"
     done
