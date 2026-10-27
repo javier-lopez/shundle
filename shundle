@@ -158,19 +158,23 @@ _shundle_init()
         #only non commented plugins are loaded
         _shundle_aux_loaded "${SHUNDLE_PLUGINS}" "${_shundle_init__bplugin}" || continue
 
+        #a bundle that declares Expose has nothing to source by design: it is a
+        #repository of commands, and Expose put those on your PATH when it was
+        #installed. Not even a file named after it, which is then the command
+        #itself: cmdfound/cmdfound sourced runs cmdfound in the shell, and its
+        #exit closes the terminal
+        case " ${SHUNDLE_EXPOSED} " in
+            *" ${plugin##*/} "*) continue ;;
+        esac
+
         [ -f "${plugin}/${_shundle_init__bplugin}/${_shundle_init__bplugin}" ] && \
             _shundle_init__bplugin="${_shundle_init__bplugin}/${_shundle_init__bplugin}"
 
         if [ ! -f "${plugin}/${_shundle_init__bplugin}" ]; then
-            #a bundle that declares Expose has nothing to source by design: it
-            #is a repository of commands, and Expose put those on your PATH
-            #when it was installed. One that declares nothing and still has no
-            #file to read is a plugin that did not arrive - and staying quiet
-            #about that is how a broken install survives for months
-            case " ${SHUNDLE_EXPOSED} " in
-                *" ${plugin##*/} "*) ;;
-                *) printf "%s\\n" "shundle: '${plugin##*/}' has nothing to source, reinstall it or give it an Expose line" >&2 ;;
-            esac
+            #one that declares nothing and still has no file to read is a plugin
+            #that did not arrive - and staying quiet about that is how a broken
+            #install survives for months
+            printf "%s\\n" "shundle: '${plugin##*/}' has nothing to source, reinstall it or give it an Expose line" >&2
             continue
         fi
 
